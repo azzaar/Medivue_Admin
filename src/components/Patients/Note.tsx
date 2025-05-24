@@ -24,13 +24,20 @@ interface Note {
   images: string[];
 }
 
+interface Patient {
+  id: string | number;
+  name: string;
+  notes: Note[];
+  [key: string]: unknown; // Optional: if patient contains other props
+}
+
 const PatientNotes = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const dataProvider = useDataProvider();
   const notify = useNotify();
   const redirect = useRedirect();
 
-  const [record, setRecord] = useState<any>(null);
+  const [record, setRecord] = useState<Patient | null>(null);
   const [noteDate, setNoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [noteText, setNoteText] = useState("");
   const [images, setImages] = useState<File[]>([]);
@@ -39,12 +46,12 @@ const PatientNotes = () => {
 
   useEffect(() => {
     if (id) {
-      dataProvider.getOne("patients", { id }).then(({ data }) => setRecord(data));
+      dataProvider.getOne<Patient>("patients", { id }).then(({ data }) => setRecord(data));
     }
   }, [id, dataProvider]);
 
   const handleNoteSubmit = async () => {
-    if (noteText.length === 0) {
+    if (!noteText.trim()) {
       notify("Enter Notes", { type: "warning" });
       return;
     }
@@ -61,17 +68,19 @@ const PatientNotes = () => {
     );
 
     const newNote: Note = {
-      noteDate: noteDate,
+      noteDate,
       text: noteText,
       images: base64Images,
     };
+
+    if (!record) return;
 
     setLoading(true);
     try {
       await dataProvider.update("patients", {
         id,
         data: {
-          notes: [...(record?.notes || []), newNote],
+          notes: [...(record.notes || []), newNote],
         },
         previousData: record,
       });
@@ -88,7 +97,7 @@ const PatientNotes = () => {
   if (!record) return <Typography m={3}>Loading patient data...</Typography>;
 
   const sortedNotes = (record.notes || []).sort(
-    (a: Note, b: Note) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
+    (a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
   );
 
   return (
@@ -143,7 +152,7 @@ const PatientNotes = () => {
             sx={{ mb: 2 }}
             variant="scrollable"
           >
-            {sortedNotes.map((note: Note, index: number) => (
+            {sortedNotes.map((note, index) => (
               <Tab
                 key={index}
                 label={new Date(note.noteDate).toLocaleDateString()}
