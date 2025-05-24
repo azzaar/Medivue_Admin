@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import Image from "next/image";
 
 interface Note {
   noteDate: string;
@@ -166,15 +167,18 @@ const PatientNotes = () => {
             </Typography>
             <Typography>{sortedNotes[tabIndex].text}</Typography>
             <Stack direction="row" spacing={1} mt={1}>
-              {sortedNotes[tabIndex].images?.map((img, idx) => (
-                <img
-                  key={idx}
-                  src={img}
-                  alt={`Note-${idx}`}
-                  width={100}
-                  style={{ borderRadius: 4 }}
-                />
-              ))}
+            {sortedNotes[tabIndex].images?.map((img, idx) => (
+  <Image
+    key={idx}
+    src={img}
+    alt={`Note-${idx}`}
+    width={100}
+    height={100}          // You need to provide height too
+    style={{ borderRadius: 4 }}
+    unoptimized           // Optional: skip optimization if images are already optimized or external
+  />
+))}
+
             </Stack>
           </Box>
         </>
