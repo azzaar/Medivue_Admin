@@ -1,6 +1,6 @@
 const authProvider = {
   login: async ({ username, password }: { username: string; password: string }) => {
-    const request = new Request("http://localhost:9000/auth/login", {
+    const request = new Request("https://api.medivue.life/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
       headers: new Headers({ "Content-Type": "application/json" }),
