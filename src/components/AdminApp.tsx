@@ -17,6 +17,8 @@ import PatientEdit from './Patients/Edit';
 import PatientList from './Patients/List';
 import { PatientShow } from './Patients/Show';
 import PatientNotes from './Patients/Note';
+import { Person as PersonIcon,  HealthAndSafety as GroupIcon } from '@mui/icons-material'; // Import Material UI icons
+
 const AdminApp = () => {
   return (
     <Admin
@@ -34,6 +36,9 @@ const AdminApp = () => {
                 create={PatientCreate}
                 edit={PatientEdit}
                 show={PatientShow}
+
+                icon={PersonIcon} // Add Person icon for Patients
+
               />
               <Resource
                 name="doctors"
@@ -41,6 +46,7 @@ const AdminApp = () => {
                 create={DoctorCreate}
                 edit={DoctorEdit}
                 show={DoctorShow}
+                icon={GroupIcon} // Add Group icon for Doctors
                 
               />
             </>
