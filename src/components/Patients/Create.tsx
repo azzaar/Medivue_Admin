@@ -26,9 +26,9 @@ const PatientCreate = () => (
         required
       />
       <ReferenceInput source="doctorId" reference="doctors" label="Assigned Doctor" required>
-  <SelectInput optionText="name" />
+  <SelectInput optionText="name" required/>
 </ReferenceInput>
-      <TextInput source="contactNumber" required />
+      <TextInput source="phoneNumber" required />
       <TextInput source="email" />
 
       <TextInput source="address.street" label="Street" required />
