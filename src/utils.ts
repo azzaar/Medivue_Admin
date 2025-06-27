@@ -13,7 +13,7 @@ import {
   DeleteResult,
   DeleteManyResult,
 } from "react-admin";
-
+//http://localhost:9000
 const apiUrl = "https://api.medivue.life";
 const httpClient = (url: string, options: RequestInit = {}) => {
   if (!options.headers) {
