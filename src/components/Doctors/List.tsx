@@ -1,5 +1,5 @@
 "use client";
-import { List, Datagrid, TextField, EditButton, SearchInput, ShowButton, DeleteButton } from "react-admin";
+import { List, Datagrid, TextField, EditButton, SearchInput, ShowButton } from "react-admin";
 
 const doctorFilters = [
   <SearchInput key="searchInput" source="q" alwaysOn placeholder="Search by name or specialization" />
@@ -8,7 +8,6 @@ const doctorFilters = [
 const DoctorList = () => (
   <List filters={doctorFilters}>
     <Datagrid>
-      <TextField source="id" />
       <TextField source="name" />
       <TextField source="specialization" />
       <TextField source="email" />
@@ -16,7 +15,7 @@ const DoctorList = () => (
                   <ShowButton />
 
       <EditButton />
-      <DeleteButton/>
+      {/* <DeleteButton/> */}
     </Datagrid>
   </List>
 );

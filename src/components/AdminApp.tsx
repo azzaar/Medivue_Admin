@@ -18,12 +18,17 @@ import PatientList from './Patients/List';
 import { PatientShow } from './Patients/Show';
 import PatientNotes from './Patients/Note';
 import { Person as PersonIcon,  HealthAndSafety as GroupIcon } from '@mui/icons-material'; // Import Material UI icons
+import theme from '@/utils/theme';
+import CustomLoginPage from './CustomLoginPage';
 
 const AdminApp = () => {
   return (
     <Admin
       layout={CustomLayout}
       dataProvider={customDataProvider}
+      defaultTheme='light'
+      loginPage={CustomLoginPage}
+      theme={theme}
       authProvider={customAuthProvider}
     >
       {(permissions) => (
