@@ -24,6 +24,8 @@ const authProvider = {
   logout: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    localStorage.removeItem("linkedDoctorId"); // Clear previous doctor ID
+
     return Promise.resolve();
   },
 

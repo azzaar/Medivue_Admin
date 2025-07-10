@@ -1,36 +1,36 @@
-import { Layout, AppBar, Logout, TitlePortal } from 'react-admin';
+import { Layout, AppBar, Logout, TitlePortal, LayoutProps } from 'react-admin';
 import { Typography, Button } from '@mui/material';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate for React Router v6
-// OR if using React Router v6, you would use `useNavigate` instead
-// import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const CustomAppBar = () => {
-  const navigate = useNavigate(); // For React Router v5
-  const doctorId = localStorage.getItem('linkedDoctorId'); // Example, you should replace it with your actual ID fetching logic
+  const navigate = useNavigate();
+
+  // Assuming 'linkedDoctorId' is part of the identity object or still stored in localStorage
+  // It's better to rely on identity if possible, but keeping localStorage for now as per original code.
+  const doctorId = localStorage.getItem('linkedDoctorId'); // Example, replace with actual ID fetching logic if identity has it
+
   const handleProfileClick = () => {
     if (doctorId) {
       console.log(`Redirecting to profile of doctor with ID: ${doctorId}`);
-      
       navigate(`/doctors/${doctorId}/profile`);
     }
   };
-
   return (
     <AppBar>
       <TitlePortal />
       <Typography flex="1" variant="h6" id="react-admin-title" />
-      {doctorId && (
-      <Button color="inherit" onClick={handleProfileClick}>
-        My Profile
-      </Button>
-      )}
+      {doctorId && doctorId !=='null' ?
+        <Button color="inherit" onClick={handleProfileClick}>
+          My Profile
+        </Button> : null}
+      
       <Logout />
     </AppBar>
   );
 };
 
-import { LayoutProps } from 'react-admin';
-
+// This component is wrapped in a CustomLayout, so it needs to be exported
+// as part of the layout structure.
 const CustomLayout = (props: LayoutProps) => <Layout {...props} appBar={CustomAppBar} />;
 
 export default CustomLayout;
