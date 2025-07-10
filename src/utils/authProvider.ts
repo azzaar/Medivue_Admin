@@ -15,8 +15,8 @@ const authProvider = {
     const response = await fetch(request);
     if (!response.ok) throw new Error("Login failed");
 
-    const { token, role } = await response.json();
-
+    const { token, role, linkedDoctorId } = await response.json();
+    localStorage.setItem("linkedDoctorId", linkedDoctorId); // Clear previous doctor ID
     localStorage.setItem("token", token);
     localStorage.setItem("role", role); // ✅ Now directly from response
   },

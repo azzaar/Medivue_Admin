@@ -8,6 +8,7 @@ const PatientCreate = () => {
     const doctorId = localStorage.getItem("linkedDoctorId");
     setLinkedDoctorId(doctorId); // Set the doctor ID from localStorage
   }, []);
+console.log("Linked Doctor ID:", linkedDoctorId); // Debugging line to check the doctor ID
 
   return (
     <Create redirect="list">
@@ -25,7 +26,7 @@ const PatientCreate = () => {
         />
 
         {/* Automatically fill in doctorId based on the logged-in user's linkedDoctorId */}
-        {linkedDoctorId && (
+        {!linkedDoctorId && (
           <ReferenceInput
             source="doctorId"
             reference="doctors"

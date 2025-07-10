@@ -20,6 +20,7 @@ import PatientNotes from './Patients/Note';
 import { Person as PersonIcon,  HealthAndSafety as GroupIcon } from '@mui/icons-material'; // Import Material UI icons
 import theme from '@/utils/theme';
 import CustomLoginPage from './CustomLoginPage';
+import DoctorProfilePage from './Doctors/DoctorProfile';
 
 const AdminApp = () => {
   return (
@@ -70,6 +71,10 @@ const AdminApp = () => {
           )}
 
           <CustomRoutes>
+              <Route
+                path="/doctors/:id/profile"
+                element={<DoctorProfilePage />}
+              />
             <Route path="/patients/:id/notes" element={<PatientNotes />} />
           </CustomRoutes>
         </>

@@ -13,9 +13,9 @@ export const DoctorShow = () => (
       <TextField source="address.postalCode" />
       <NumberField source="experience" />
       <TextField source="qualifications" />
-            <TextField source="login.username"  label='Username'/>
+            <TextField source="username"  label='Username'/>
 
-            <TextField source="login.password" label='Password' />
+            <TextField source="plainPassword" label='Password' />
 
     </SimpleShowLayout>
   </Show>

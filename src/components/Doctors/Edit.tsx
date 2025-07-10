@@ -8,11 +8,7 @@ const DoctorEdit = () => (
       <TextInput source="specialization" />
       <TextInput source="email" />
       <TextInput source="contactNumber" />
-            <TextInput source="username"  label='Username'/>
-           
-                       <TextInput source="plainPassword" label='Password' />
-           
-      <TextInput source="contactNumber" />
+              <TextInput source="contactNumber" />
 
       <NumberInput source="experience" />
     </SimpleForm>
