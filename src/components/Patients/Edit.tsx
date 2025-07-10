@@ -44,9 +44,9 @@ const PatientEdit = () => (
       <TextInput source="address.postalCode" label="Postal Code" required />
 
       {/* Emergency Contact Information */}
-      <TextInput source="emergencyContact.name" label="Emergency Contact Name" required />
-      <TextInput source="emergencyContact.relation" label="Relation" required />
-      <TextInput source="emergencyContact.contactNumber" label="Emergency Contact Number" required />
+      <TextInput source="emergencyContactName" label="Emergency Contact Name" required />
+      <TextInput source="emergencyContactRelation" label="Relation" required />
+      <TextInput source="emergencyContactNumber" label="Emergency Contact Number" required />
 
       {/* Medical History Section */}
       <ArrayInput source="medicalHistory">

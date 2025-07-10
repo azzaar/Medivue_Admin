@@ -447,7 +447,7 @@ const PatientNotes = () => {
         `Gender: ${record.gender || "N/A"}`,
         `Phone Number: ${record.phoneNumber || "N/A"}`,
         `Alternate Phone: ${record.alternatePhoneNumber || "N/A"}`,
-        `Emergency Contact: ${record.emergencyContact.name} (${record.emergencyContact.relation}) - ${record.emergencyContact.contactNumber || "N/A"}`,
+        `Emergency Contact: ${record.emergencyContactName} (${record.emergencyContactRelation}) - ${record.emergencyContactNumber || "N/A"}`,
         `Email: ${record.email || "N/A"}`,
         `Address: ${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`,
       ];

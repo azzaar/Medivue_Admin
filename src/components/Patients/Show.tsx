@@ -12,9 +12,9 @@ export const PatientShow = () => (
       <TextField source="address.city" />
       <TextField source="address.state" />
       <TextField source="address.postalCode" />
-      <TextField source="emergencyContact.name" />
-      <TextField source="emergencyContact.relation" />
-      <TextField source="emergencyContact.contactNumber" />
+      <TextField source="emergencyContactName" />
+      <TextField source="emergencyContactRelation" />
+      <TextField source="emergencyContactNumber" />
     </SimpleShowLayout>
   </Show>
 );

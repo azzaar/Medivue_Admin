@@ -1,5 +1,11 @@
 const authProvider = {
-  login: async ({ username, password }: { username: string; password: string }) => {
+  login: async ({
+    username,
+    password,
+  }: {
+    username: string;
+    password: string;
+  }) => {
     const request = new Request("https://api.medivue.life/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
@@ -37,6 +43,10 @@ const authProvider = {
   getPermissions: () => {
     const role = localStorage.getItem("role");
     return role ? Promise.resolve(role) : Promise.reject();
+  },
+  getLinkedDoctorId: () => {
+    const linkedDoctorId = localStorage.getItem("linkedDoctorId");
+    return linkedDoctorId ? Promise.resolve(linkedDoctorId) : Promise.reject();
   },
 };
 
