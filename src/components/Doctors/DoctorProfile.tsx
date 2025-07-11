@@ -10,7 +10,7 @@ import {
   Edit,
   useNotify,
   useRedirect,
-    useRefresh,
+  useRefresh,
   useLogout,
   useRecordContext,
 } from "react-admin";
@@ -21,7 +21,6 @@ import {
   Button,
   CircularProgress,
 } from "@mui/material";
-import { Grid } from "@mui/material";
 import { toast } from "react-toastify";
 
 async function updateUsernamePassword({
@@ -32,17 +31,20 @@ async function updateUsernamePassword({
   id: string;
   username: string;
   plainPassword: string;
-    }): Promise<object> {
-        const token = localStorage.getItem("token");
+}): Promise<object> {
+  const token = localStorage.getItem("token");
 
-  const response = await fetch(`https://api.medivue.life/doctors/${id}/credentials`, {
-    method: "PUT",
-    headers: {
+  const response = await fetch(
+    `https://api.medivue.life/doctors/${id}/credentials`,
+    {
+      method: "PUT",
+      headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,  // Add the token here
+        Authorization: `Bearer ${token}`, // Add the token here
       },
-    body: JSON.stringify({ username, plainPassword }),
-  });
+      body: JSON.stringify({ username, plainPassword }),
+    }
+  );
 
   if (!response.ok) {
     const errorData = await response.json();
@@ -73,10 +75,7 @@ const CustomToolbar = () => {
             if (error instanceof Error) {
               message = error.message;
             }
-            notify(
-              `Error updating profile: ${message}`,
-              { type: "error" }
-            );
+            notify(`Error updating profile: ${message}`, { type: "error" });
           },
         }}
       />
@@ -126,7 +125,9 @@ const DoctorProfileForm = () => {
       if (err instanceof Error) {
         toast.error(`Failed to update login credentials: ${err.message}`);
       } else {
-        toast.error("Failed to update login credentials: An unknown error occurred.");
+        toast.error(
+          "Failed to update login credentials: An unknown error occurred."
+        );
       }
     }
   };
@@ -152,24 +153,19 @@ const DoctorProfileForm = () => {
       <Typography variant="h6" gutterBottom>
         Doctor Profile Details
       </Typography>
-      <Grid container spacing={2}>
-  <Grid item xs={12} sm={6}>
-    <TextInput source="name" label="Name" fullWidth />
-  </Grid>
-  <Grid item xs={12} sm={6}>
-    <TextInput source="specialization" label="Specialization" fullWidth />
-  </Grid>
-  <Grid item xs={12} sm={6}>
-    <TextInput source="contactNumber" label="Contact Number" fullWidth />
-  </Grid>
-  <Grid item xs={12} sm={6}>
-    <TextInput source="email" label="Email" type="email" fullWidth />
-  </Grid>
-  <Grid item xs={12} sm={6}>
-    <NumberInput source="experience" label="Experience (Years)" fullWidth />
-  </Grid>
-</Grid>
-
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { sm: "1fr 1fr", xs: "1fr" },
+          gap: 2,
+        }}
+      >
+        <TextInput source="name" label="Name" fullWidth />
+        <TextInput source="specialization" label="Specialization" fullWidth />
+        <TextInput source="contactNumber" label="Contact Number" fullWidth />
+        <TextInput source="email" label="Email" type="email" fullWidth />
+        <NumberInput source="experience" label="Experience (Years)" fullWidth />
+      </Box>
 
       <Divider sx={{ my: 2 }} />
 
@@ -177,28 +173,35 @@ const DoctorProfileForm = () => {
         Change Login Credentials
       </Typography>
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}> {/* Removed component="div" */}
-          <TextInput
-            label="New Username"
-                      value={username}
-                      source="username"
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-            fullWidth
-            helperText="Enter a new username for login."
-          />
-        </Grid>
-        <Grid item xs={12} sm={6}> {/* Removed component="div" */}
-          <TextInput
-            label="New Password"
-                      source="plainPassword"
-            value={plainPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPlainPassword(e.target.value)}
-            fullWidth
-            helperText="Enter a new password. Leave blank if you don't want to change it."
-          />
-        </Grid>
-      </Grid>
+      <Box
+  sx={{
+    display: 'grid',
+    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+    gap: 2,
+  }}
+>
+  <TextInput
+    label="New Username"
+    value={username}
+    source="username"
+    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+      setUsername(e.target.value)
+    }
+    fullWidth
+    helperText="Enter a new username for login."
+  />
+
+  <TextInput
+    label="New Password"
+    source="plainPassword"
+    value={plainPassword}
+    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+      setPlainPassword(e.target.value)
+    }
+    fullWidth
+    helperText="Enter a new password. Leave blank if you don't want to change it."
+  />
+</Box>
 
       <Box display="flex" justifyContent="center" mt={3}>
         <Button variant="contained" onClick={handleCredentialsChange}>
