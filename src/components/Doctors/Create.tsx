@@ -17,7 +17,7 @@ const DoctorCreate = () => (
       <TextInput source="email" label="Email" />
 
       <TextInput source="address.street" label="Street" />
-      <TextInput source="address.city" label="City" />
+      <TextInput source="address.city" label="City " />
       <TextInput source="address.state" label="State" />
       <TextInput source="address.postalCode" label="Postal Code" />
 
