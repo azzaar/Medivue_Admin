@@ -95,7 +95,7 @@ const customDataProvider: DataProvider = {
       method: "POST",
       body: JSON.stringify(params.data),
     });
-    return { data: { ...json.data, id: json.data._id } };
+    return { data: { ...json.data, id: json.id || json._id } };
   },
 
   update: async (resource: string, params: UpdateParams) => {
