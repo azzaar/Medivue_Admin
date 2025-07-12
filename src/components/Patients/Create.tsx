@@ -1,14 +1,25 @@
 import { useEffect, useState } from "react";
-import { Create, SimpleForm, TextInput, NumberInput, SelectInput, ArrayInput, SimpleFormIterator, DateInput, ReferenceInput } from "react-admin";
+import {
+  Create,
+  SimpleForm,
+  TextInput,
+  NumberInput,
+  SelectInput,
+  ArrayInput,
+  SimpleFormIterator,
+  ReferenceInput,
+} from "react-admin";
 
 const PatientCreate = () => {
   const [linkedDoctorId, setLinkedDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Get doctor ID from localStorage
     const doctorId = localStorage.getItem("linkedDoctorId");
-    setLinkedDoctorId(doctorId); // Set the doctor ID from localStorage
+    setLinkedDoctorId(doctorId);
+
+
   }, []);
-console.log("Linked Doctor ID:", linkedDoctorId); // Debugging line to check the doctor ID
 
   return (
     <Create redirect="list">
@@ -20,43 +31,44 @@ console.log("Linked Doctor ID:", linkedDoctorId); // Debugging line to check the
           choices={[
             { id: "Male", name: "Male" },
             { id: "Female", name: "Female" },
-            { id: "Other", name: "Other" }
+            { id: "Other", name: "Other" },
           ]}
           required
         />
 
         {/* Automatically fill in doctorId based on the logged-in user's linkedDoctorId */}
-        {!linkedDoctorId && (
+        {linkedDoctorId !=='null' ? (
+          <TextInput source="doctorId" defaultValue={linkedDoctorId} style={{ display: "none" }} />
+        ) : (
           <ReferenceInput
             source="doctorId"
             reference="doctors"
-            label="Assigned Doctor"
-            defaultValue={linkedDoctorId}  // Pre-fill with the doctor's ID
-            disabled  // Disable to prevent modification
+              label="Assigned Doctor"
+              
           >
-            <SelectInput optionText="name" />
+            <SelectInput optionText="name" required />
           </ReferenceInput>
         )}
 
         <TextInput source="phoneNumber" required />
         <TextInput source="email" />
 
-        <TextInput source="address.street" label="Street" required />
-        <TextInput source="address.city" label="City" required />
-        <TextInput source="address.state" label="State" required />
-        <TextInput source="address.postalCode" label="Postal Code" required />
+        <TextInput source="address.street" label="Street" />
+        <TextInput source="address.city" label="City" />
+        <TextInput source="address.state" label="State" />
+        <TextInput source="address.postalCode" label="Postal Code" />
 
-        <TextInput source="emergencyContactName" label="Emergency Contact Name" required />
-        <TextInput source="emergencyContactRelation" label="Relation" required />
-        <TextInput source="emergencyContactNumber" label="Emergency Contact Number" required />
+        <TextInput
+          source="emergencyContactName"
+          label="Emergency Contact Name"
+        />
+        <TextInput source="emergencyContactRelation" label="Relation" />
+        <TextInput
+          source="emergencyContactNumber"
+          label="Emergency Contact Number"
+        />
 
-        <ArrayInput source="medicalHistory">
-          <SimpleFormIterator>
             <TextInput source="condition" label="Condition" />
-            <DateInput source="diagnosisDate" label="Diagnosis Date" />
-            <TextInput source="notes" label="Notes" />
-          </SimpleFormIterator>
-        </ArrayInput>
 
         <ArrayInput source="medications">
           <SimpleFormIterator>

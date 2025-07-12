@@ -7,7 +7,6 @@ import {
   SelectInput,
   ArrayInput,
   SimpleFormIterator,
-  DateInput,
   ReferenceInput
 } from "react-admin";
 
@@ -49,13 +48,8 @@ const PatientEdit = () => (
       <TextInput source="emergencyContactNumber" label="Emergency Contact Number" required />
 
       {/* Medical History Section */}
-      <ArrayInput source="medicalHistory">
-        <SimpleFormIterator>
-          <TextInput source="condition" label="Condition" />
-          <DateInput source="diagnosisDate" label="Diagnosis Date" />
-          <TextInput source="notes" label="Notes" />
-        </SimpleFormIterator>
-      </ArrayInput>
+                 <TextInput source="condition" label="Condition" />
+
 
       {/* Medications Section */}
       <ArrayInput source="medications">
