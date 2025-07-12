@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import {
   Edit,
   SimpleForm,
@@ -10,8 +11,18 @@ import {
   ReferenceInput
 } from "react-admin";
 
-const PatientEdit = () => (
-  <Edit redirect="list">
+const PatientEdit = () => {
+
+  const [linkedDoctorId, setLinkedDoctorId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Get doctor ID from localStorage
+    const doctorId = localStorage.getItem("linkedDoctorId");
+    setLinkedDoctorId(doctorId);
+  
+  
+  }, []);
+  return (<Edit redirect="list">
     <SimpleForm>
       {/* Patient Personal Information */}
       <TextInput source="name" label="Name" required />
@@ -28,40 +39,49 @@ const PatientEdit = () => (
       />
       
       {/* Doctor selection */}
-      <ReferenceInput source="doctorId" reference="doctors" label="Assigned Doctor" required>
-        <SelectInput optionText="name" label="Doctor Name" required />
-      </ReferenceInput>
+      {linkedDoctorId !== 'null' ? (
+        <TextInput source="doctorId" defaultValue={linkedDoctorId} style={{ display: "none" }} />
+      ) : (
+        <ReferenceInput
+          source="doctorId"
+          reference="doctors"
+          label="Assigned Doctor"
+              
+        >
+          <SelectInput optionText="name" required />
+        </ReferenceInput>
+      )}
 
       {/* Contact Information */}
       <TextInput source="phoneNumber" label="Contact Number" required />
       <TextInput source="email" label="Email" />
 
       {/* Address Information */}
-      <TextInput source="address.street" label="Street" required />
-      <TextInput source="address.city" label="City" required />
-      <TextInput source="address.state" label="State" required />
-      <TextInput source="address.postalCode" label="Postal Code" required />
+      <TextInput source="address.street" label="Street"  />
+      <TextInput source="address.city" label="City"  />
+      <TextInput source="address.state" label="State"  />
+      <TextInput source="address.postalCode" label="Postal Code"  />
 
       {/* Emergency Contact Information */}
-      <TextInput source="emergencyContactName" label="Emergency Contact Name" required />
-      <TextInput source="emergencyContactRelation" label="Relation" required />
-      <TextInput source="emergencyContactNumber" label="Emergency Contact Number" required />
+      <TextInput source="emergencyContactName" label="Emergency Contact Name"  />
+      <TextInput source="emergencyContactRelation" label="Relation"  />
+      <TextInput source="emergencyContactNumber" label="Emergency Contact Number"  />
 
       {/* Medical History Section */}
-                 <TextInput source="condition" label="Condition" />
+      <TextInput source="condition" label="Condition" />
 
 
       {/* Medications Section */}
       <ArrayInput source="medications">
         <SimpleFormIterator>
-          <TextInput source="name" label="Medication Name" required />
-          <TextInput source="dosage" label="Dosage" required />
-          <TextInput source="frequency" label="Frequency" required />
+          <TextInput source="name" label="Medication Name"  />
+          <TextInput source="dosage" label="Dosage"  />
+          <TextInput source="frequency" label="Frequency"  />
           <TextInput source="prescribedBy" label="Prescribed By" />
         </SimpleFormIterator>
       </ArrayInput>
     </SimpleForm>
   </Edit>
-);
-
+  );
+}
 export default PatientEdit;
