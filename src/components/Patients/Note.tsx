@@ -507,240 +507,190 @@ const PatientNotes = () => {
   };
   const YOUR_LOGO_PATH = "/medivueLogo.jpeg";
   // --- PDF GENERATION LOGIC ---
-  const handleDownloadPdf = async () => {
-    if (!record) {
-      notify("No patient data to generate report.", { type: "warning" });
-      return;
+ const handleDownloadPdf = async () => {
+  if (!record) {
+    notify("No patient data to generate report.", { type: "warning" });
+    return;
+  }
+
+  setPdfLoading(true);
+  notify("Generating PDF report...", { type: "info", autoHideDuration: 3000 });
+
+  try {
+    const doc = new jsPDF("p", "mm", "a4");
+    let yOffset = 10;
+
+    // —————————————————————————
+    // Clinic Header (logo + name/address)
+    // —————————————————————————
+    if (YOUR_LOGO_PATH) {
+      const img = new Image();
+      img.src = YOUR_LOGO_PATH;
+      await new Promise((res) => {
+        img.onload = res;
+        img.onerror = () => {
+          console.warn("Logo load failed, skipping.");
+          res(null);
+        };
+      });
+      if (img.complete && img.naturalWidth) {
+        const w = 30;
+        const h = (img.height * w) / img.width;
+        doc.addImage(img, "JPEG", 10, yOffset, w, h);
+        yOffset += h + 5;
+      }
+    }
+    doc.setFontSize(18).setFont("helvetica", "bold");
+    doc.text(CLINIC_NAME, 105, yOffset, { align: "center" });
+    yOffset += 8;
+    doc.setFontSize(10).setFont("helvetica", "normal");
+    doc.text(CLINIC_ADDRESS, 105, yOffset, { align: "center" });
+    yOffset += 5;
+    doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, 105, yOffset, {
+      align: "center",
+    });
+    yOffset += 15;
+
+    // —————————————————————————
+    // Patient Information
+    // —————————————————————————
+    doc.setFontSize(14).setFont("helvetica", "bold");
+    doc.text("Patient Information", 15, yOffset);
+    yOffset += 8;
+    doc.setFontSize(11).setFont("helvetica", "normal");
+
+    const patientInfo = [
+      `Name: ${record.name}`,
+      `Age: ${record.age ?? "N/A"}`,
+      `Gender: ${record.gender ?? "N/A"}`,
+      `Phone: ${record.phoneNumber ?? "N/A"}`,
+      `Alternate Phone: ${record.alternatePhoneNumber ?? "N/A"}`,
+      `Email: ${record.email ?? "N/A"}`,
+      `Address: ${
+        record.address
+          ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
+          : "N/A"
+      }`,
+    ];
+    for (const line of patientInfo) {
+      if (yOffset > 280) {
+        doc.addPage();
+        yOffset = 20;
+      }
+      doc.text(line, 15, yOffset);
+      yOffset += 7;
     }
 
-    setPdfLoading(true);
-    notify("Generating PDF report...", {
-      type: "info",
-      autoHideDuration: 3000,
-    });
+    // —————————————————————————
+    // Notes Section Title
+    // —————————————————————————
+    yOffset += 10;
+    doc.setFontSize(14).setFont("helvetica", "bold");
+    doc.text("Patient Notes", 15, yOffset);
+    yOffset += 8;
 
-    try {
-      const doc = new jsPDF("p", "mm", "a4");
-      let yOffset = 10;
-
-      // --- Header with Logo and Clinic Info ---
-      if (YOUR_LOGO_PATH) {
-        try {
-          const img = new window.Image() as HTMLImageElement;
-          img.src = YOUR_LOGO_PATH; // Load logo from the public directory
-          await new Promise((resolve) => {
-            img.onload = resolve;
-            img.onerror = (e) => {
-              console.warn("Failed to load logo image for PDF, skipping.", e);
-              resolve(null);
-            };
-          });
-
-          if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
-            const imgWidth = 30;
-            const imgHeight = (img.height * imgWidth) / img.width;
-            doc.addImage(img, "JPEG", 10, yOffset, imgWidth, imgHeight);
-            yOffset += imgHeight + 5;
-          }
-        } catch (logoError) {
-          console.error("Error adding logo to PDF:", logoError);
-        }
-      }
-
-      // --- Clinic Info (Centered) ---
-      doc.setFontSize(18);
-      doc.setFont("helvetica", "bold");
-      doc.text(CLINIC_NAME, 105, yOffset, { align: "center" });
-      yOffset += 8;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(CLINIC_ADDRESS, 105, yOffset, { align: "center" });
-      yOffset += 5;
-      doc.text(
-        `Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`,
-        105,
-        yOffset,
-        { align: "center" }
-      );
-      yOffset += 15;
-
-      // --- Patient Information Section ---
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Patient Information", 15, yOffset);
-      yOffset += 8;
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      const patientInfo = [
-        `Name: ${record.name}`,
-        `Age: ${record.age || "N/A"}`,
-        `Gender: ${record.gender || "N/A"}`,
-        `Phone Number: ${record.phoneNumber || "N/A"}`,
-        `Alternate Phone: ${record.alternatePhoneNumber || "N/A"}`,
-        `Emergency Contact: ${record.emergencyContactName} (${
-          record.emergencyContactRelation
-        }) - ${record.emergencyContactNumber || "N/A"}`,
-        `Email: ${record.email || "N/A"}`,
-        `Address: ${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`,
-      ];
-
-      patientInfo.forEach((info) => {
-        if (yOffset > 280) {
+    if (sortedNotes.length === 0) {
+      doc.setFontSize(11).setFont("helvetica", "italic");
+      doc.text("No notes available for this patient.", 15, yOffset);
+      yOffset += 7;
+    } else {
+      for (const note of sortedNotes) {
+        // new page if we're too low
+        if (yOffset > 270) {
           doc.addPage();
           yOffset = 20;
         }
-        doc.text(info, 15, yOffset);
+
+        // — Date heading —
+        doc.setFontSize(12).setFont("helvetica", "bold");
+        doc.text(
+          `Date: ${new Date(note.noteDate).toLocaleDateString()}`,
+          15,
+          yOffset
+        );
         yOffset += 7;
-      });
+        doc.setFontSize(11).setFont("helvetica", "normal");
 
-      yOffset += 10;
+        // — Build an array of all fields —
+        const noteFields: { label: string; value?: string }[] = [
+          { label: "Chief Complaint", value: note.chiefComplaint },
+          { label: "On Examination", value: note.onExamination },
+          { label: "History", value: note.history },
+          { label: "Medications", value: note.medications },
+          { label: "On Observation", value: note.onObservation },
+          { label: "On Palpation", value: note.onPalpation },
+          { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
+          {
+            label: "MMT",
+            value:
+              note.mmt && note.mmt.length > 0
+                ? note.mmt
+                    .map(
+                      (j) =>
+                        `${j.joint}: ${j.actions
+                          .map((a) => `${a.action} ${a.grade}`)
+                          .join(" | ")}`
+                    )
+                    .join("\n")
+                : undefined,
+          },
+          { label: "Treatment", value: note.treatment },
+          {
+            label: "Additional Notes",
+            value:
+              note.additionalNotes && note.additionalNotes.length > 0
+                ? note.additionalNotes
+                    .map((an) => `${an.heading}: ${an.description}`)
+                    .join("\n")
+                : undefined,
+          },
+        ];
 
-      // --- Notes Section ---
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Patient Notes", 15, yOffset);
-      yOffset += 8;
-
-      if (sortedNotes.length === 0) {
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "italic");
-        doc.text("No notes available for this patient.", 15, yOffset);
-      } else {
-        doc.setFont("helvetica", "normal");
-        for (const note of sortedNotes) {
-          if (yOffset > 270) {
+        // — Loop & render each field —
+        for (const field of noteFields) {
+          if (!field.value) continue;
+          const textBlock = doc.splitTextToSize(
+            `${field.label}: ${field.value}`,
+            180
+          );
+          if (yOffset + textBlock.length * 6 > 285) {
             doc.addPage();
             yOffset = 20;
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text("Patient Notes (continued)", 15, yOffset);
-            yOffset += 8;
-            doc.setFont("helvetica", "normal");
           }
-
-          doc.setFontSize(12);
-          doc.setFont("helvetica", "bold");
-          doc.text(
-            `Date: ${new Date(note.noteDate).toLocaleDateString()}`,
-            15,
-            yOffset
-          );
-          yOffset += 7;
-          doc.setFontSize(11);
-          doc.setFont("helvetica", "normal");
-
-          const noteFields = [
-            { label: "History", value: note.history },
-            { label: "Medications", value: note.medications },
-            { label: "On Observation", value: note.onObservation },
-            { label: "On Palpation", value: note.onPalpation },
-            { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
-            { label: "MMT", value: note.mmt },
-            { label: "Treatment", value: note.treatment },
-            {
-              label: "Additional Notes",
-              value:
-                note.additionalNotes && note.additionalNotes.length > 0
-                  ? note.additionalNotes.join("\n- ")
-                  : undefined,
-            },
-          ];
-
-          for (const field of noteFields) {
-            if (field.value) {
-              let text = `${field.label}: ${field.value}`;
-              if (
-                field.label === "Additional Notes" &&
-                note.additionalNotes &&
-                note.additionalNotes.length > 0
-              ) {
-                text =
-                  `${field.label}:\n- ` + note.additionalNotes.join("\n- ");
-              }
-              const splitText = doc.splitTextToSize(text, 180);
-              if (yOffset + splitText.length * 6 > 285) {
-                doc.addPage();
-                yOffset = 20;
-              }
-              doc.text(splitText, 18, yOffset);
-              yOffset += splitText.length * 6 + 2;
-            }
-          }
-
-          // --- Images Section ---
-          if (note.images && note.images.length > 0) {
-            if (yOffset > 270) {
-              doc.addPage();
-              yOffset = 20;
-            }
-            doc.setFontSize(11);
-            doc.setFont("helvetica", "bold");
-            doc.text("Attached Images:", 18, yOffset);
-            yOffset += 5;
-            doc.setFont("helvetica", "normal");
-
-            for (const imgBase64 of note.images) {
-              const img = new Image() as HTMLImageElement;
-              img.src = imgBase64;
-              await new Promise((resolve) => {
-                img.onload = resolve;
-                img.onerror = (e) => {
-                  console.warn("Failed to load image for PDF, skipping.", e);
-                  resolve(null);
-                };
-              });
-
-              if (
-                img.complete &&
-                img.naturalWidth > 0 &&
-                img.naturalHeight > 0
-              ) {
-                const imgWidth = 80;
-                const imgHeight = (img.height * imgWidth) / img.width;
-
-                if (yOffset + imgHeight + 10 > 285) {
-                  doc.addPage();
-                  yOffset = 20;
-                }
-                doc.addImage(
-                  imgBase64,
-                  "PNG",
-                  25,
-                  yOffset,
-                  imgWidth,
-                  imgHeight
-                );
-                yOffset += imgHeight + 5;
-              }
-            }
-          }
-          yOffset += 8;
+          doc.text(textBlock, 15, yOffset);
+          yOffset += textBlock.length * 6 + 2;
         }
-      }
 
-      // --- Footer: Page Number ---
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(
+        yOffset += 8;
+      }
+    }
+
+    // —————————————————————————
+    // Footer: page numbers
+    // —————————————————————————
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+        .setFontSize(8)
+        .text(
           `Page ${i} of ${pageCount}`,
           doc.internal.pageSize.width - 20,
           doc.internal.pageSize.height - 10,
           { align: "right" }
         );
-      }
-
-      doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
-      notify("PDF report generated successfully", { type: "success" });
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      notify("Failed to generate PDF report", { type: "error" });
-    } finally {
-      setPdfLoading(false);
     }
-  };
+
+    // — Save & finish —
+    doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
+    notify("PDF report generated successfully", { type: "success" });
+  } catch (err) {
+    console.error("PDF generation error:", err);
+    notify("Failed to generate PDF report", { type: "error" });
+  } finally {
+    setPdfLoading(false);
+  }
+};
+
 
   const mmtActions = [
     {
@@ -786,8 +736,15 @@ const PatientNotes = () => {
     },
   ];
 
-  const grades = ["0", "0+", "1", "1+", "2", "2+", "3", "3+", "4", "4+", "5"];
-  if (!record) return <Typography m={3}>Loading patient data...</Typography>;
+const grades = [
+  "-2", "-1+", "-1",
+  "0", "0+",
+  "1", "1+",
+  "2", "2+",
+  "3", "3+",
+  "4", "4+",
+  "5"
+];  if (!record) return <Typography m={3}>Loading patient data...</Typography>;
 
   return (
     <Box p={3}>
