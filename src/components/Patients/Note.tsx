@@ -83,6 +83,7 @@ interface Patient {
     contactNumber: string;
   };
   email?: string;
+  condition?: string; // New field for condition
   occupation?: string;
   chiefComplaint?: string;
   address: {
@@ -572,6 +573,7 @@ const PatientNotes = () => {
         `Age: ${record.age ?? "N/A"}`,
         `Gender: ${record.gender ?? "N/A"}`,
         `Phone: ${record.phoneNumber ?? "N/A"}`,
+        `Condition: ${record.condition ?? "N/A"}`,
         `Alternate Phone: ${record.alternatePhoneNumber ?? "N/A"}`,
         `Email: ${record.email ?? "N/A"}`,
         `Address: ${
@@ -812,6 +814,12 @@ const PatientNotes = () => {
           </Typography>
           <Typography sx={{ ml: { sm: 3 } }}>
             <Typography component="span" fontWeight="bold">
+              Condition:
+            </Typography>{" "}
+            {record.condition || "N/A"}
+          </Typography>
+          <Typography sx={{ ml: { sm: 3 } }}>
+            <Typography component="span" fontWeight="bold">
               Sex:
             </Typography>{" "}
             {record.gender || "N/A"}
@@ -838,7 +846,277 @@ const PatientNotes = () => {
           </Typography>
         </Stack>
       </Box>
+   <Typography variant="h6" gutterBottom>
+        Previous Notes
+      </Typography>
 
+      {sortedNotes.length === 0 ? (
+        <Typography mt={2} style={{ whiteSpace: "pre-line" }}>
+          No notes available.
+        </Typography>
+      ) : (
+        <>
+          <Tabs
+            value={tabIndex}
+            onChange={(_, newIndex) => setTabIndex(newIndex)}
+            sx={{
+              mb: 2,
+              "& .MuiTabs-indicator": { backgroundColor: "#16669f" },
+            }}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+          >
+            {sortedNotes.map((note, index) => (
+              <Tab
+                key={index}
+                label={new Date(note.noteDate).toLocaleDateString()}
+                sx={{
+                  fontWeight: "bold",
+                  fontSize: 14,
+                  "&.Mui-selected": {
+                    color: "#16669f",
+                    backgroundColor: "#f0f0f0",
+                  },
+                  "&:hover": { backgroundColor: "#e8e8e8" },
+                }}
+              />
+            ))}
+          </Tabs>
+
+          <Box border={1} borderRadius={2} p={2} borderColor="grey.300">
+            {sortedNotes[tabIndex] && (
+              <Stack direction="column" spacing={2} alignItems="flex-start">
+                <Typography
+                  variant="h6"
+                  fontWeight="bold"
+                  color="primary"
+                  style={{ whiteSpace: "pre-line" }}
+                >
+                  Note for{" "}
+                  {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
+                </Typography>
+                <Box>
+                  <IconButton
+                    aria-label="edit note"
+                    onClick={() => handleEditNote(tabIndex)}
+                    color="primary"
+                    size="small"
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    aria-label="delete note"
+                    onClick={() => handleDeleteClick(tabIndex)}
+                    color="error"
+                    size="small"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+                {/* Chief Complaint */}
+                {sortedNotes[tabIndex].chiefComplaint && (
+                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      <strong>Chief Complaint:</strong>{" "}
+                      {sortedNotes[tabIndex].chiefComplaint}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* On Examination */}
+                {sortedNotes[tabIndex]?.onExamination && (
+                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      <strong>On Examination:</strong>{" "}
+                      {sortedNotes[tabIndex].onExamination}
+                    </Typography>
+                  </Box>
+                )}
+                {sortedNotes[tabIndex].history && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>History:</strong> {sortedNotes[tabIndex].history}
+                  </Typography>
+                )}
+                {sortedNotes[tabIndex].medications && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>Medications:</strong>{" "}
+                    {sortedNotes[tabIndex].medications}
+                  </Typography>
+                )}
+                {sortedNotes[tabIndex].onObservation && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>On Observation:</strong>{" "}
+                    {sortedNotes[tabIndex].onObservation}
+                  </Typography>
+                )}
+                {sortedNotes[tabIndex].onPalpation && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>On Palpation:</strong>{" "}
+                    {sortedNotes[tabIndex].onPalpation}
+                  </Typography>
+                )}
+                {sortedNotes[tabIndex].painAssessmentNPRS && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>Pain Assessment (NPRS):</strong>{" "}
+                    {sortedNotes[tabIndex].painAssessmentNPRS}
+                  </Typography>
+                )}
+                {sortedNotes[tabIndex].mmt && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>MMT:</strong>{" "}
+                    {sortedNotes[tabIndex]?.mmt &&
+                    sortedNotes[tabIndex]?.mmt.length > 0
+                      ? sortedNotes[tabIndex].mmt.map((joint) => (
+                          <Box key={joint.joint} mb={2}>
+                            <Typography variant="h6" fontWeight="bold">
+                              {joint.joint}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {joint.actions
+                                .map(
+                                  (action) =>
+                                    `${action.action}: ${action.grade}` // Join action and grade
+                                )
+                                .join(" | ")}
+                            </Typography>
+                          </Box>
+                        ))
+                      : "N/A"}
+                  </Typography>
+                )}
+
+                {sortedNotes[tabIndex].treatment && (
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    style={{ whiteSpace: "pre-line" }}
+                  >
+                    <strong>Treatment:</strong>{" "}
+                    {sortedNotes[tabIndex].treatment}
+                  </Typography>
+                )}
+                {(sortedNotes[tabIndex]?.additionalNotes ?? []).length > 0 && (
+                  <Box sx={{ whiteSpace: "pre-line", mt: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color="textSecondary"
+                      gutterBottom
+                    >
+                      <strong>Additional Notes:</strong>
+                    </Typography>
+                    <List dense disablePadding>
+                      {sortedNotes[tabIndex]!.additionalNotes!.map(
+                        (note, idx) => (
+                          <ListItem
+                            key={`display-add-note-${idx}`}
+                            sx={{ py: 0.5 }}
+                          >
+                            <ListItemIcon sx={{ minWidth: 30 }}>
+                              <TextsmsIcon fontSize="small" color="action" />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={
+                                <Typography fontWeight="bold">
+                                  {note.heading}
+                                </Typography>
+                              }
+                              secondary={note.description}
+                            />
+                          </ListItem>
+                        )
+                      )}
+                    </List>
+                  </Box>
+                )}
+
+                {sortedNotes[tabIndex].images &&
+                  sortedNotes[tabIndex].images.length > 0 && (
+                    <Box>
+                      <Typography
+                        variant="body2"
+                        color="textSecondary"
+                        style={{ whiteSpace: "pre-line" }}
+                      >
+                        <strong>Attached Images:</strong>
+                      </Typography>
+                      <Stack direction="row" spacing={2} flexWrap="wrap">
+                        {sortedNotes[tabIndex].images.map((img, idx) => (
+                          <Box
+                            key={idx}
+                            sx={{
+                              position: "relative",
+                              width: 100,
+                              height: 100,
+                            }}
+                          >
+                            <img
+                              src={img}
+                              alt={`Note-${idx}`}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <IconButton
+                              size="small"
+                              sx={{
+                                position: "absolute",
+                                top: 4,
+                                right: 4,
+                                backgroundColor: "rgba(255, 0, 0, 0.7)",
+                                color: "white",
+                                "&:hover": {
+                                  backgroundColor: "rgba(255, 0, 0, 0.9)",
+                                },
+                              }}
+                              onClick={() =>
+                                handleDownloadImage(
+                                  img,
+                                  sortedNotes[tabIndex].noteDate,
+                                  idx
+                                )
+                              }
+                              aria-label="download image"
+                            >
+                              <FileDownloadIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+              </Stack>
+            )}
+          </Box>
+        </>
+      )}
       <Typography variant="h6" gutterBottom ref={formRef}>
         {editingNoteIndex !== null ? "Edit Note" : "Add New Note"}
       </Typography>
@@ -1241,277 +1519,7 @@ const PatientNotes = () => {
       </Stack>
 
       {/* Previous Notes Display */}
-      <Typography variant="h6" gutterBottom>
-        Previous Notes
-      </Typography>
-
-      {sortedNotes.length === 0 ? (
-        <Typography mt={2} style={{ whiteSpace: "pre-line" }}>
-          No notes available.
-        </Typography>
-      ) : (
-        <>
-          <Tabs
-            value={tabIndex}
-            onChange={(_, newIndex) => setTabIndex(newIndex)}
-            sx={{
-              mb: 2,
-              "& .MuiTabs-indicator": { backgroundColor: "#16669f" },
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-          >
-            {sortedNotes.map((note, index) => (
-              <Tab
-                key={index}
-                label={new Date(note.noteDate).toLocaleDateString()}
-                sx={{
-                  fontWeight: "bold",
-                  fontSize: 14,
-                  "&.Mui-selected": {
-                    color: "#16669f",
-                    backgroundColor: "#f0f0f0",
-                  },
-                  "&:hover": { backgroundColor: "#e8e8e8" },
-                }}
-              />
-            ))}
-          </Tabs>
-
-          <Box border={1} borderRadius={2} p={2} borderColor="grey.300">
-            {sortedNotes[tabIndex] && (
-              <Stack direction="column" spacing={2} alignItems="flex-start">
-                <Typography
-                  variant="h6"
-                  fontWeight="bold"
-                  color="primary"
-                  style={{ whiteSpace: "pre-line" }}
-                >
-                  Note for{" "}
-                  {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
-                </Typography>
-                <Box>
-                  <IconButton
-                    aria-label="edit note"
-                    onClick={() => handleEditNote(tabIndex)}
-                    color="primary"
-                    size="small"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    aria-label="delete note"
-                    onClick={() => handleDeleteClick(tabIndex)}
-                    color="error"
-                    size="small"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-                {/* Chief Complaint */}
-                {sortedNotes[tabIndex].chiefComplaint && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      <strong>Chief Complaint:</strong>{" "}
-                      {sortedNotes[tabIndex].chiefComplaint}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* On Examination */}
-                {sortedNotes[tabIndex]?.onExamination && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      <strong>On Examination:</strong>{" "}
-                      {sortedNotes[tabIndex].onExamination}
-                    </Typography>
-                  </Box>
-                )}
-                {sortedNotes[tabIndex].history && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>History:</strong> {sortedNotes[tabIndex].history}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].medications && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Medications:</strong>{" "}
-                    {sortedNotes[tabIndex].medications}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].onObservation && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>On Observation:</strong>{" "}
-                    {sortedNotes[tabIndex].onObservation}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].onPalpation && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>On Palpation:</strong>{" "}
-                    {sortedNotes[tabIndex].onPalpation}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].painAssessmentNPRS && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Pain Assessment (NPRS):</strong>{" "}
-                    {sortedNotes[tabIndex].painAssessmentNPRS}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].mmt && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>MMT:</strong>{" "}
-                    {sortedNotes[tabIndex]?.mmt &&
-                    sortedNotes[tabIndex]?.mmt.length > 0
-                      ? sortedNotes[tabIndex].mmt.map((joint) => (
-                          <Box key={joint.joint} mb={2}>
-                            <Typography variant="h6" fontWeight="bold">
-                              {joint.joint}
-                            </Typography>
-                            <Typography variant="body2" color="textSecondary">
-                              {joint.actions
-                                .map(
-                                  (action) =>
-                                    `${action.action}: ${action.grade}` // Join action and grade
-                                )
-                                .join(" | ")}
-                            </Typography>
-                          </Box>
-                        ))
-                      : "N/A"}
-                  </Typography>
-                )}
-
-                {sortedNotes[tabIndex].treatment && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Treatment:</strong>{" "}
-                    {sortedNotes[tabIndex].treatment}
-                  </Typography>
-                )}
-                {(sortedNotes[tabIndex]?.additionalNotes ?? []).length > 0 && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 2 }}>
-                    <Typography
-                      variant="body2"
-                      color="textSecondary"
-                      gutterBottom
-                    >
-                      <strong>Additional Notes:</strong>
-                    </Typography>
-                    <List dense disablePadding>
-                      {sortedNotes[tabIndex]!.additionalNotes!.map(
-                        (note, idx) => (
-                          <ListItem
-                            key={`display-add-note-${idx}`}
-                            sx={{ py: 0.5 }}
-                          >
-                            <ListItemIcon sx={{ minWidth: 30 }}>
-                              <TextsmsIcon fontSize="small" color="action" />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Typography fontWeight="bold">
-                                  {note.heading}
-                                </Typography>
-                              }
-                              secondary={note.description}
-                            />
-                          </ListItem>
-                        )
-                      )}
-                    </List>
-                  </Box>
-                )}
-
-                {sortedNotes[tabIndex].images &&
-                  sortedNotes[tabIndex].images.length > 0 && (
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        style={{ whiteSpace: "pre-line" }}
-                      >
-                        <strong>Attached Images:</strong>
-                      </Typography>
-                      <Stack direction="row" spacing={2} flexWrap="wrap">
-                        {sortedNotes[tabIndex].images.map((img, idx) => (
-                          <Box
-                            key={idx}
-                            sx={{
-                              position: "relative",
-                              width: 100,
-                              height: 100,
-                            }}
-                          >
-                            <img
-                              src={img}
-                              alt={`Note-${idx}`}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                borderRadius: "8px",
-                              }}
-                            />
-                            <IconButton
-                              size="small"
-                              sx={{
-                                position: "absolute",
-                                top: 4,
-                                right: 4,
-                                backgroundColor: "rgba(255, 0, 0, 0.7)",
-                                color: "white",
-                                "&:hover": {
-                                  backgroundColor: "rgba(255, 0, 0, 0.9)",
-                                },
-                              }}
-                              onClick={() =>
-                                handleDownloadImage(
-                                  img,
-                                  sortedNotes[tabIndex].noteDate,
-                                  idx
-                                )
-                              }
-                              aria-label="download image"
-                            >
-                              <FileDownloadIcon fontSize="small" />
-                            </IconButton>
-                          </Box>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
-              </Stack>
-            )}
-          </Box>
-        </>
-      )}
+   
 
       {/* Delete Confirmation Dialog */}
       <Dialog
