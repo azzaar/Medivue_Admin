@@ -507,190 +507,198 @@ const PatientNotes = () => {
   };
   const YOUR_LOGO_PATH = "/medivueLogo.jpeg";
   // --- PDF GENERATION LOGIC ---
- const handleDownloadPdf = async () => {
-  if (!record) {
-    notify("No patient data to generate report.", { type: "warning" });
-    return;
-  }
-
-  setPdfLoading(true);
-  notify("Generating PDF report...", { type: "info", autoHideDuration: 3000 });
-
-  try {
-    const doc = new jsPDF("p", "mm", "a4");
-    let yOffset = 10;
-
-    // —————————————————————————
-    // Clinic Header (logo + name/address)
-    // —————————————————————————
-    if (YOUR_LOGO_PATH) {
-      const img = new Image();
-      img.src = YOUR_LOGO_PATH;
-      await new Promise((res) => {
-        img.onload = res;
-        img.onerror = () => {
-          console.warn("Logo load failed, skipping.");
-          res(null);
-        };
-      });
-      if (img.complete && img.naturalWidth) {
-        const w = 30;
-        const h = (img.height * w) / img.width;
-        doc.addImage(img, "JPEG", 10, yOffset, w, h);
-        yOffset += h + 5;
-      }
+  const handleDownloadPdf = async () => {
+    if (!record) {
+      notify("No patient data to generate report.", { type: "warning" });
+      return;
     }
-    doc.setFontSize(18).setFont("helvetica", "bold");
-    doc.text(CLINIC_NAME, 105, yOffset, { align: "center" });
-    yOffset += 8;
-    doc.setFontSize(10).setFont("helvetica", "normal");
-    doc.text(CLINIC_ADDRESS, 105, yOffset, { align: "center" });
-    yOffset += 5;
-    doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, 105, yOffset, {
-      align: "center",
+
+    setPdfLoading(true);
+    notify("Generating PDF report...", {
+      type: "info",
+      autoHideDuration: 3000,
     });
-    yOffset += 15;
 
-    // —————————————————————————
-    // Patient Information
-    // —————————————————————————
-    doc.setFontSize(14).setFont("helvetica", "bold");
-    doc.text("Patient Information", 15, yOffset);
-    yOffset += 8;
-    doc.setFontSize(11).setFont("helvetica", "normal");
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+      let yOffset = 10;
 
-    const patientInfo = [
-      `Name: ${record.name}`,
-      `Age: ${record.age ?? "N/A"}`,
-      `Gender: ${record.gender ?? "N/A"}`,
-      `Phone: ${record.phoneNumber ?? "N/A"}`,
-      `Alternate Phone: ${record.alternatePhoneNumber ?? "N/A"}`,
-      `Email: ${record.email ?? "N/A"}`,
-      `Address: ${
-        record.address
-          ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
-          : "N/A"
-      }`,
-    ];
-    for (const line of patientInfo) {
-      if (yOffset > 280) {
-        doc.addPage();
-        yOffset = 20;
+      // —————————————————————————
+      // Clinic Header (logo + name/address)
+      // —————————————————————————
+      if (YOUR_LOGO_PATH) {
+        const img = new Image();
+        img.src = YOUR_LOGO_PATH;
+        await new Promise((res) => {
+          img.onload = res;
+          img.onerror = () => {
+            console.warn("Logo load failed, skipping.");
+            res(null);
+          };
+        });
+        if (img.complete && img.naturalWidth) {
+          const w = 30;
+          const h = (img.height * w) / img.width;
+          doc.addImage(img, "JPEG", 10, yOffset, w, h);
+          yOffset += h + 5;
+        }
       }
-      doc.text(line, 15, yOffset);
-      yOffset += 7;
-    }
+      doc.setFontSize(18).setFont("helvetica", "bold");
+      doc.text(CLINIC_NAME, 105, yOffset, { align: "center" });
+      yOffset += 8;
+      doc.setFontSize(10).setFont("helvetica", "normal");
+      doc.text(CLINIC_ADDRESS, 105, yOffset, { align: "center" });
+      yOffset += 5;
+      doc.text(
+        `Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`,
+        105,
+        yOffset,
+        {
+          align: "center",
+        }
+      );
+      yOffset += 15;
 
-    // —————————————————————————
-    // Notes Section Title
-    // —————————————————————————
-    yOffset += 10;
-    doc.setFontSize(14).setFont("helvetica", "bold");
-    doc.text("Patient Notes", 15, yOffset);
-    yOffset += 8;
+      // —————————————————————————
+      // Patient Information
+      // —————————————————————————
+      doc.setFontSize(14).setFont("helvetica", "bold");
+      doc.text("Patient Information", 15, yOffset);
+      yOffset += 8;
+      doc.setFontSize(11).setFont("helvetica", "normal");
 
-    if (sortedNotes.length === 0) {
-      doc.setFontSize(11).setFont("helvetica", "italic");
-      doc.text("No notes available for this patient.", 15, yOffset);
-      yOffset += 7;
-    } else {
-      for (const note of sortedNotes) {
-        // new page if we're too low
-        if (yOffset > 270) {
+      const patientInfo = [
+        `Name: ${record.name}`,
+        `Age: ${record.age ?? "N/A"}`,
+        `Gender: ${record.gender ?? "N/A"}`,
+        `Phone: ${record.phoneNumber ?? "N/A"}`,
+        `Alternate Phone: ${record.alternatePhoneNumber ?? "N/A"}`,
+        `Email: ${record.email ?? "N/A"}`,
+        `Address: ${
+          record.address
+            ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
+            : "N/A"
+        }`,
+      ];
+      for (const line of patientInfo) {
+        if (yOffset > 280) {
           doc.addPage();
           yOffset = 20;
         }
-
-        // — Date heading —
-        doc.setFontSize(12).setFont("helvetica", "bold");
-        doc.text(
-          `Date: ${new Date(note.noteDate).toLocaleDateString()}`,
-          15,
-          yOffset
-        );
+        doc.text(line, 15, yOffset);
         yOffset += 7;
-        doc.setFontSize(11).setFont("helvetica", "normal");
+      }
 
-        // — Build an array of all fields —
-        const noteFields: { label: string; value?: string }[] = [
-          { label: "Chief Complaint", value: note.chiefComplaint },
-          { label: "On Examination", value: note.onExamination },
-          { label: "History", value: note.history },
-          { label: "Medications", value: note.medications },
-          { label: "On Observation", value: note.onObservation },
-          { label: "On Palpation", value: note.onPalpation },
-          { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
-          {
-            label: "MMT",
-            value:
-              note.mmt && note.mmt.length > 0
-                ? note.mmt
-                    .map(
-                      (j) =>
-                        `${j.joint}: ${j.actions
-                          .map((a) => `${a.action} ${a.grade}`)
-                          .join(" | ")}`
-                    )
-                    .join("\n")
-                : undefined,
-          },
-          { label: "Treatment", value: note.treatment },
-          {
-            label: "Additional Notes",
-            value:
-              note.additionalNotes && note.additionalNotes.length > 0
-                ? note.additionalNotes
-                    .map((an) => `${an.heading}: ${an.description}`)
-                    .join("\n")
-                : undefined,
-          },
-        ];
+      // —————————————————————————
+      // Notes Section Title
+      // —————————————————————————
+      yOffset += 10;
+      doc.setFontSize(14).setFont("helvetica", "bold");
+      doc.text("Patient Notes", 15, yOffset);
+      yOffset += 8;
 
-        // — Loop & render each field —
-        for (const field of noteFields) {
-          if (!field.value) continue;
-          const textBlock = doc.splitTextToSize(
-            `${field.label}: ${field.value}`,
-            180
-          );
-          if (yOffset + textBlock.length * 6 > 285) {
+      if (sortedNotes.length === 0) {
+        doc.setFontSize(11).setFont("helvetica", "italic");
+        doc.text("No notes available for this patient.", 15, yOffset);
+        yOffset += 7;
+      } else {
+        for (const note of sortedNotes) {
+          // new page if we're too low
+          if (yOffset > 270) {
             doc.addPage();
             yOffset = 20;
           }
-          doc.text(textBlock, 15, yOffset);
-          yOffset += textBlock.length * 6 + 2;
+
+          // — Date heading —
+          doc.setFontSize(12).setFont("helvetica", "bold");
+          doc.text(
+            `Date: ${new Date(note.noteDate).toLocaleDateString()}`,
+            15,
+            yOffset
+          );
+          yOffset += 7;
+          doc.setFontSize(11).setFont("helvetica", "normal");
+
+          // — Build an array of all fields —
+          const noteFields: { label: string; value?: string }[] = [
+            { label: "Chief Complaint", value: note.chiefComplaint },
+            { label: "On Examination", value: note.onExamination },
+            { label: "History", value: note.history },
+            { label: "Medications", value: note.medications },
+            { label: "On Observation", value: note.onObservation },
+            { label: "On Palpation", value: note.onPalpation },
+            { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
+            {
+              label: "MMT",
+              value:
+                note.mmt && note.mmt.length > 0
+                  ? note.mmt
+                      .map(
+                        (j) =>
+                          `${j.joint}: ${j.actions
+                            .map((a) => `${a.action} ${a.grade}`)
+                            .join(" | ")}`
+                      )
+                      .join("\n")
+                  : undefined,
+            },
+            { label: "Treatment", value: note.treatment },
+            {
+              label: "Additional Notes",
+              value:
+                note.additionalNotes && note.additionalNotes.length > 0
+                  ? note.additionalNotes
+                      .map((an) => `${an.heading}: ${an.description}`)
+                      .join("\n")
+                  : undefined,
+            },
+          ];
+
+          // — Loop & render each field —
+          for (const field of noteFields) {
+            if (!field.value) continue;
+            const textBlock = doc.splitTextToSize(
+              `${field.label}: ${field.value}`,
+              180
+            );
+            if (yOffset + textBlock.length * 6 > 285) {
+              doc.addPage();
+              yOffset = 20;
+            }
+            doc.text(textBlock, 15, yOffset);
+            yOffset += textBlock.length * 6 + 2;
+          }
+
+          yOffset += 8;
         }
-
-        yOffset += 8;
       }
+
+      // —————————————————————————
+      // Footer: page numbers
+      // —————————————————————————
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc
+          .setPage(i)
+          .setFontSize(8)
+          .text(
+            `Page ${i} of ${pageCount}`,
+            doc.internal.pageSize.width - 20,
+            doc.internal.pageSize.height - 10,
+            { align: "right" }
+          );
+      }
+
+      // — Save & finish —
+      doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
+      notify("PDF report generated successfully", { type: "success" });
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      notify("Failed to generate PDF report", { type: "error" });
+    } finally {
+      setPdfLoading(false);
     }
-
-    // —————————————————————————
-    // Footer: page numbers
-    // —————————————————————————
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-        .setFontSize(8)
-        .text(
-          `Page ${i} of ${pageCount}`,
-          doc.internal.pageSize.width - 20,
-          doc.internal.pageSize.height - 10,
-          { align: "right" }
-        );
-    }
-
-    // — Save & finish —
-    doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
-    notify("PDF report generated successfully", { type: "success" });
-  } catch (err) {
-    console.error("PDF generation error:", err);
-    notify("Failed to generate PDF report", { type: "error" });
-  } finally {
-    setPdfLoading(false);
-  }
-};
-
+  };
 
   const mmtActions = [
     {
@@ -736,15 +744,23 @@ const PatientNotes = () => {
     },
   ];
 
-const grades = [
-  "-2", "-1+", "-1",
-  "0", "0+",
-  "1", "1+",
-  "2", "2+",
-  "3", "3+",
-  "4", "4+",
-  "5"
-];  if (!record) return <Typography m={3}>Loading patient data...</Typography>;
+  const grades = [
+    "0",
+    "1",
+    "1+",
+    "2-", // Added from image
+    "2",
+    "2+",
+    "3-", // Added from image
+    "3",
+    "3+",
+    "4-", // Added from image
+    "4",
+    "4+",
+    "5-", // Added from image
+    "5",
+  ];
+  if (!record) return <Typography m={3}>Loading patient data...</Typography>;
 
   return (
     <Box p={3}>
@@ -861,19 +877,6 @@ const grades = [
         />
 
         {/* On Examination */}
-        <TextareaAutosize
-          minRows={3}
-          placeholder="On Examination"
-          value={onExamination}
-          onChange={(e) => setOnExamination(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
 
         <TextareaAutosize
           minRows={3}
@@ -944,7 +947,19 @@ const grades = [
             fontSize: "16px",
           }}
         />
-
+        <TextareaAutosize
+          minRows={3}
+          placeholder="On Examination"
+          value={onExamination}
+          onChange={(e) => setOnExamination(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            border: "1px solid #ddd",
+            borderRadius: "8px",
+            fontSize: "16px",
+          }}
+        />
         <Box mb={3}>
           <Typography variant="h6" fontWeight="bold">
             MMT (Manual Muscle Testing)
@@ -1041,22 +1056,34 @@ const grades = [
           )}
 
           <Stack direction="column" spacing={1} mt={2}>
-            <TextField
-              label="Heading"
+            <TextareaAutosize
+              minRows={2}
+              placeholder="Heading"
               value={newNoteHeading}
               onChange={(e) => setNewNoteHeading(e.target.value)}
-              fullWidth
-              size="small"
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                fontSize: "16px",
+              }}
             />
-            <TextField
-              label="Description"
-              multiline
-              rows={2}
+
+            <TextareaAutosize
+              minRows={3}
+              placeholder="Description"
               value={newNoteDescription}
               onChange={(e) => setNewNoteDescription(e.target.value)}
-              fullWidth
-              size="small"
+              style={{
+                width: "100%",
+                padding: "10px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                fontSize: "16px",
+              }}
             />
+
             <Button
               variant="contained"
               onClick={handleAddAdditionalNote}
