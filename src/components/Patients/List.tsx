@@ -42,6 +42,8 @@ const PatientList = () => {
         <NumberField source="age" />
         <TextField source="gender" />
         <TextField source="phoneNumber" />
+                <TextField source="condition" />
+
         {permissions === "admin" && (
           <ReferenceField label="Doctor" source="doctorId" reference="doctors">
             <TextField source="name" />
