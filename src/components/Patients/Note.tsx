@@ -582,6 +582,8 @@ const PatientNotes = () => {
             : "N/A"
         }`,
       ];
+
+      // Loop through patient information
       for (const line of patientInfo) {
         if (yOffset > 280) {
           doc.addPage();
@@ -604,8 +606,15 @@ const PatientNotes = () => {
         doc.text("No notes available for this patient.", 15, yOffset);
         yOffset += 7;
       } else {
-        for (const note of sortedNotes) {
-          // new page if we're too low
+        // —————————————————————————
+        // Prioritize the Most Recent Notes
+        // —————————————————————————
+        const sortedNotesWithPriority = sortedNotes.sort(
+          (a, b) =>
+            new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
+        );
+
+        for (const note of sortedNotesWithPriority) {
           if (yOffset > 270) {
             doc.addPage();
             yOffset = 20;
@@ -656,7 +665,7 @@ const PatientNotes = () => {
             },
           ];
 
-          // — Loop & render each field —
+          // Loop & render each field
           for (const field of noteFields) {
             if (!field.value) continue;
             const textBlock = doc.splitTextToSize(
@@ -846,7 +855,7 @@ const PatientNotes = () => {
           </Typography>
         </Stack>
       </Box>
-   <Typography variant="h6" gutterBottom>
+      <Typography variant="h6" gutterBottom>
         Previous Notes
       </Typography>
 
@@ -1519,7 +1528,6 @@ const PatientNotes = () => {
       </Stack>
 
       {/* Previous Notes Display */}
-   
 
       {/* Delete Confirmation Dialog */}
       <Dialog

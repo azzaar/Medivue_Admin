@@ -31,3 +31,7 @@ body {
     }
 }
 
+.MuiTextField-root textarea {
+  overflow: auto;
+  resize: vertical; /* Allow vertical resizing */
+}
