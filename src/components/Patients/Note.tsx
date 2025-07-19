@@ -633,12 +633,13 @@ const PatientNotes = () => {
           // — Build an array of all fields —
           const noteFields: { label: string; value?: string }[] = [
             { label: "Chief Complaint", value: note.chiefComplaint },
-            { label: "On Examination", value: note.onExamination },
             { label: "History", value: note.history },
             { label: "Medications", value: note.medications },
             { label: "On Observation", value: note.onObservation },
             { label: "On Palpation", value: note.onPalpation },
             { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
+                        { label: "On Examination", value: note.onExamination },
+
             {
               label: "MMT",
               value:
@@ -934,14 +935,7 @@ const PatientNotes = () => {
                 )}
 
                 {/* On Examination */}
-                {sortedNotes[tabIndex]?.onExamination && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      <strong>On Examination:</strong>{" "}
-                      {sortedNotes[tabIndex].onExamination}
-                    </Typography>
-                  </Box>
-                )}
+        
                 {sortedNotes[tabIndex].history && (
                   <Typography
                     variant="body2"
@@ -990,6 +984,14 @@ const PatientNotes = () => {
                     <strong>Pain Assessment (NPRS):</strong>{" "}
                     {sortedNotes[tabIndex].painAssessmentNPRS}
                   </Typography>
+                )}
+                        {sortedNotes[tabIndex]?.onExamination && (
+                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
+                    <Typography variant="body2" color="textSecondary">
+                      <strong>On Examination:</strong>{" "}
+                      {sortedNotes[tabIndex].onExamination}
+                    </Typography>
+                  </Box>
                 )}
                 {sortedNotes[tabIndex].mmt && (
                   <Typography
