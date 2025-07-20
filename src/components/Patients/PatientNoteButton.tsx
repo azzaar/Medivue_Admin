@@ -1,22 +1,25 @@
+import React from "react";
 import { useRecordContext, Button } from "react-admin";
 import { useNavigate } from "react-router-dom";
 
-const AddNoteButton = () => {
+const AddNoteButton: React.FC = () => {
   const record = useRecordContext();
   const navigate = useNavigate();
 
   if (!record) return null;
 
+  const label = "Notes";
+
   return (
     <Button
       variant="outlined"
-      size="small"
+      size={ "medium"}
       onClick={(e) => {
-        e.stopPropagation(); // ✅ Prevent row click from redirecting to Show
+        e.stopPropagation(); // don’t trigger row click
         navigate(`/patients/${record.id}/notes`);
       }}
     >
-      Add/View Notes
+     <p style={{fontSize:'15px'}}>{label}</p> 
     </Button>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  Box,
   Button,
   Dialog,
   DialogActions,
@@ -22,6 +23,7 @@ import {
 } from "react-admin";
 import CalendarView from "./CalendarView"; // The calendar component you created earlier
 import NotesButton from "./PatientNoteButton";
+import { CalendarToday } from "@mui/icons-material";
 
 const PatientList = () => {
   const { permissions } = usePermissions();
@@ -83,21 +85,50 @@ const PatientList = () => {
         <NotesButton />
 
         {/* Button to open Calendar Dialog */}
+
         <FunctionField
-          label="Calendar" // Label for the column
-          render={(
-            record: {id:string} // 'record' contains the data for the current row
-          ) => (
+          label="Calendar"
+          render={(record: { id: string }) => (
             <Button
-              sx={{ fontSize: "0.8rem", padding: "4px 8px" }} // Adjust button size
               variant="contained"
               color="primary"
               onClick={() => {
                 console.log("Opening calendar for patient ID:", record.id);
-                handleCalendarOpen(record.id); // Pass record.id directly
+                handleCalendarOpen(record.id);
+              }}
+              sx={{
+                // fontSize & padding become smaller on 'xs' screens
+                fontSize: { xs: "20px", sm: "0.8rem" },
+                padding: { xs: "2px 6px", sm: "4px 8px" },
+                // you can also adjust minWidth if needed
+                minWidth: { xs: 64, sm: 96 },
               }}
             >
-              Visited Days
+              {/* you could shorten the label on mobile too */}
+              <Box
+                component="span"
+                sx={{
+                  display: "inline",
+                  // hide the text on xs and show an icon instead, if you like:
+                  "@media (max-width:600px)": {
+                    fontSize: 0,
+                    width: 0,
+                    overflow: "hidden",
+                    padding: 0,
+                  },
+                }}
+              >
+                Visited Days
+              </Box>
+              {/* Optional: show a calendar icon on xs only */}
+              <CalendarToday
+                fontSize="small"
+                sx={{
+                  display: { xs: "inline-flex", sm: "none" },
+                  verticalAlign: "middle",
+                  ml: { xs: 0.5, sm: 0 },
+                }}
+              />
             </Button>
           )}
         />
