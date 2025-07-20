@@ -8,6 +8,7 @@ import {
   Loading,
   useNotify,
   useRefresh,
+  HttpError,
 } from "react-admin";
 import { Box, Button, Paper, Stack, Typography, Divider } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -61,9 +62,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
           refresh();
           setSelection(null);
         })
-        .catch((err: any) =>
-          notify(err.message || "Error toggling visit", { type: "warning" })
-        );
+        .catch((err: unknown) => {
+          // First try to treat it as React‑Admin's HttpError
+          if (err instanceof HttpError) {
+            notify(err.message, { type: "warning" });
+            return;
+          }
+          // Next, native JS Error
+          if (err instanceof Error) {
+            notify(err.message, { type: "warning" });
+            return;
+          }
+        });
     } else {
       // single‑click: just select
       setSelection(date);
@@ -82,19 +92,22 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         refresh();
         setSelection(null);
       })
-      .catch((err: any) =>
-        notify(err.message || "Error", { type: "warning" })
-      );
+      .catch((err: unknown) => {
+          // First try to treat it as React‑Admin's HttpError
+          if (err instanceof HttpError) {
+            notify(err.message, { type: "warning" });
+            return;
+          }
+          // Next, native JS Error
+          if (err instanceof Error) {
+            notify(err.message, { type: "warning" });
+            return;
+          }
+        });
   };
 
   // green dot styling
-  const tileClassName = ({
-    date,
-    view,
-  }: {
-    date: Date;
-    view: string;
-  }) => {
+  const tileClassName = ({ date, view }: { date: Date; view: string }) => {
     if (
       view === "month" &&
       visitedDates.some((d) => d.toDateString() === date.toDateString())
