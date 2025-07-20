@@ -27,25 +27,15 @@ const AdminApp = () => {
     <Admin
       layout={CustomLayout}
       dataProvider={customDataProvider}
-      defaultTheme='light'
+      defaultTheme="light"
       loginPage={CustomLoginPage}
       theme={theme}
       authProvider={customAuthProvider}
     >
       {(permissions) => (
         <>
-          {permissions === 'admin' && (
+          {permissions === "admin" && (
             <>
-              <Resource
-                name="patients"
-                list={PatientList}
-                create={PatientCreate}
-                edit={PatientEdit}
-                show={PatientShow}
-
-                icon={PersonIcon} // Add Person icon for Patients
-
-              />
               <Resource
                 name="doctors"
                 list={DoctorList}
@@ -53,28 +43,22 @@ const AdminApp = () => {
                 edit={DoctorEdit}
                 show={DoctorShow}
                 icon={GroupIcon} // Add Group icon for Doctors
-                
               />
             </>
           )}
-
-          {permissions === 'doctor' && (
-            <>
-              <Resource
-                name="patients"
-                list={PatientList}
-                create={PatientCreate}
-                edit={PatientEdit}
-                show={PatientShow}
-              />
-            </>
-          )}
-
+          <Resource
+            name="patients"
+            list={PatientList}
+            create={PatientCreate}
+            edit={PatientEdit}
+            show={PatientShow}
+            icon={PersonIcon} // Add Person icon for Patients
+          />
           <CustomRoutes>
-              <Route
-                path="/doctors/:id/profile"
-                element={<DoctorProfilePage />}
-              />
+            <Route
+              path="/doctors/:id/profile"
+              element={<DoctorProfilePage />}
+            />
             <Route path="/patients/:id/notes" element={<PatientNotes />} />
           </CustomRoutes>
         </>
