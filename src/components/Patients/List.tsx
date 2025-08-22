@@ -37,7 +37,7 @@ const PatientList = () => {
       key="searchInput"
       source="q"
       alwaysOn
-      placeholder="Search by name or city"
+      placeholder="Search by Name or Id"
     />,
     ...(permissions === "admin"
       ? [
@@ -69,8 +69,10 @@ const PatientList = () => {
   }, [openCalendarDialog]);
 
   return (
-    <List filters={patientFilters}>
-      <Datagrid rowClick={false}>
+    <List filters={patientFilters} >
+      <Datagrid rowClick={false} bulkActionButtons={false}>
+                <TextField source="patientId"  label={'Patient id'}/>
+
         <TextField source="name" />
         <NumberField source="age" />
         <TextField source="gender" />

@@ -17,10 +17,12 @@ import PatientEdit from './Patients/Edit';
 import PatientList from './Patients/List';
 import { PatientShow } from './Patients/Show';
 import PatientNotes from './Patients/Note';
-import { Person as PersonIcon,  HealthAndSafety as GroupIcon } from '@mui/icons-material'; // Import Material UI icons
+import { Person as PersonIcon,  HealthAndSafety as GroupIcon, BookOnline } from '@mui/icons-material'; // Import Material UI icons
 import theme from '@/utils/theme';
 import CustomLoginPage from './CustomLoginPage';
 import DoctorProfilePage from './Doctors/DoctorProfile';
+import AppoinmentList from './Appoinment/List';
+import { JobCategoryList, JobCategoryCreate, JobCategoryEdit, JobCategoryShow } from './Job';
 
 const AdminApp = () => {
   return (
@@ -44,6 +46,18 @@ const AdminApp = () => {
                 show={DoctorShow}
                 icon={GroupIcon} // Add Group icon for Doctors
               />
+               <Resource
+                name="appointments"
+                list={AppoinmentList}
+                icon={BookOnline} // Add Group icon for Doctors
+              />
+               <Resource
+      name="jobs"
+      list={JobCategoryList}
+      create={JobCategoryCreate}
+      edit={JobCategoryEdit}
+      show={JobCategoryShow}
+    />
             </>
           )}
           <Resource

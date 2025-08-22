@@ -47,8 +47,9 @@ interface MMTAction {
 }
 
 interface MMT {
-  joint: string;
-  actions: MMTAction[];
+  joint: string; // The joint name (e.g., "Shoulder", "Knee")
+  right: { actions: MMTAction[] }; // Right side actions
+  left: { actions: MMTAction[] };  // Left side actions
 }
 
 interface Note {
@@ -65,10 +66,12 @@ interface Note {
   additionalNotes?: AdditionalNote[];
   images: string[];
 }
+
 interface AdditionalNote {
   heading: string;
   description: string;
 }
+
 // Define the patient structure
 interface Patient {
   id: string | number;
@@ -87,7 +90,6 @@ interface Patient {
   occupation?: string;
   chiefComplaint?: string;
   address: {
-    // Added address details as per backend schema
     street: string;
     city: string;
     state: string;
@@ -111,9 +113,7 @@ const PatientNotes = () => {
   const notify = useNotify();
 
   const [record, setRecord] = useState<Patient | null>(null);
-  const [noteDate, setNoteDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [noteDate, setNoteDate] = useState(new Date().toISOString().slice(0, 10));
   const [history, setHistory] = useState("");
   const [medications, setMedications] = useState("");
   const [onObservation, setOnObservation] = useState("");
@@ -127,25 +127,17 @@ const PatientNotes = () => {
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [onExamination, setOnExamination] = useState("");
   const [images, setImages] = useState<File[]>([]);
-  const [existingImagesToDisplay, setExistingImagesToDisplay] = useState<
-    string[]
-  >([]);
+  const [existingImagesToDisplay, setExistingImagesToDisplay] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
   const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [noteToDeleteIndex, setNoteToDeleteIndex] = useState<number | null>(
-    null
-  );
+  const [noteToDeleteIndex, setNoteToDeleteIndex] = useState<number | null>(null);
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
-    null
-  ); // To help with deleting
-  const [gradesSelection, setGradesSelection] = useState<{
-    [key: string]: string;
-  }>({});
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null); // To help with deleting
+  const [gradesSelection, setGradesSelection] = useState<{ [key: string]: string }>({});
 
   const formRef = useRef<HTMLDivElement | null>(null);
 
@@ -161,13 +153,9 @@ const PatientNotes = () => {
     }
   }, [id, dataProvider, notify]);
 
-  const sortedNotes =
-    record && record.notes
-      ? [...record.notes].sort(
-          (a, b) =>
-            new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
-        )
-      : [];
+  const sortedNotes = record && record.notes
+    ? [...record.notes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime())
+    : [];
 
   useEffect(() => {
     if (sortedNotes.length > 0 && tabIndex >= sortedNotes.length) {
@@ -196,7 +184,6 @@ const PatientNotes = () => {
     setEditingNoteIndex(null);
     setGradesSelection({}); // Reset grades selection
   };
-
   const handleAddAdditionalNote = () => {
     setAdditionalNotes([
       ...additionalNotes,
@@ -214,43 +201,47 @@ const PatientNotes = () => {
       additionalNotes.filter((_, idx) => idx !== indexToDelete)
     );
   };
+ const handleGradeChange = (
+  joint: string,
+  action: string,
+  side: "right" | "left",  // Side can only be "right" or "left"
+  grade: string
+) => {
+  const jointActionKey = `${joint}-${action}-${side}`;
 
-  const handleGradeChange = (joint: string, action: string, grade: string) => {
-    // First, update the grades selection map (if you're storing grades outside mmt state)
-    const jointActionKey = `${joint}-${action}`;
-    setGradesSelection((prev) => ({
-      ...prev,
-      [jointActionKey]: grade, // Store the grade for this joint-action pair
-    }));
+  // Update grade for the respective joint-action-side
+  setGradesSelection((prev) => ({
+    ...prev,
+    [jointActionKey]: grade, // Store the grade for this specific action and side
+  }));
 
-    const updatedMmt = [...mmt];
+  const updatedMmt = [...mmt];
+  const jointIndex = updatedMmt.findIndex((item) => item.joint === joint);
 
-    // Find if joint already exists in the mmt state
-    const jointIndex = updatedMmt.findIndex((item) => item.joint === joint);
+  if (jointIndex > -1) {
+    // If the joint exists, find the action index
+    const actionIndex = updatedMmt[jointIndex][side].actions.findIndex(
+      (item) => item.action === action
+    );
 
-    if (jointIndex > -1) {
-      // Joint exists, update the action and grade
-      const actionIndex = updatedMmt[jointIndex].actions.findIndex(
-        (item) => item.action === action
-      );
-
-      if (actionIndex > -1) {
-        // Action exists, update its grade
-        updatedMmt[jointIndex].actions[actionIndex].grade = grade;
-      } else {
-        // Action doesn't exist, add it
-        updatedMmt[jointIndex].actions.push({ action, grade });
-      }
+    if (actionIndex > -1) {
+      // If action exists, update the grade
+      updatedMmt[jointIndex][side].actions[actionIndex].grade = grade;
     } else {
-      // Joint doesn't exist, add a new joint with actions
-      updatedMmt.push({
-        joint,
-        actions: [{ action, grade }],
-      });
+      // If action doesn't exist, push a new action with the grade
+      updatedMmt[jointIndex][side].actions.push({ action, grade });
     }
+  } else {
+    // If joint doesn't exist, add a new joint with actions
+    updatedMmt.push({
+      joint,
+      right: side === "right" ? { actions: [{ action, grade }] } : { actions: [] },
+      left: side === "left" ? { actions: [{ action, grade }] } : { actions: [] },
+    });
+  }
 
-    setMmt(updatedMmt);
-  };
+  setMmt(updatedMmt);  // Update the MMT state with the new data
+};
 
   const handleNoteSubmit = async () => {
     if (
@@ -267,21 +258,18 @@ const PatientNotes = () => {
       images.length === 0 &&
       existingImagesToDisplay.length === 0
     ) {
-      notify("Please fill at least one note field or upload an image", {
-        type: "warning",
-      });
+      notify("Please fill at least one note field or upload an image", { type: "warning" });
       return;
     }
 
     const newBase64Images = await Promise.all(
-      images.map(
-        (file) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          })
+      images?.map((file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        })
       )
     );
 
@@ -300,7 +288,7 @@ const PatientNotes = () => {
       treatment: typeof treatment === "string" ? treatment.trim() : undefined, // Ensure treatment is a string
       additionalNotes:
         additionalNotes.length > 0
-          ? additionalNotes.map(({ heading, description }) => ({
+          ? additionalNotes?.map(({ heading, description }) => ({
               heading: heading.trim(),
               description: description.trim(),
             }))
@@ -327,9 +315,7 @@ const PatientNotes = () => {
           // Replace the old note with the updated one
           updatedNotes[originalIndex] = updatedOrNewNote;
         } else {
-          console.warn(
-            "Original note not found for update, appending instead."
-          );
+          console.warn("Original note not found for update, appending instead.");
           updatedNotes.push(updatedOrNewNote); // In case of an unexpected condition, append the new note
         }
       } else {
@@ -346,9 +332,7 @@ const PatientNotes = () => {
       });
 
       notify(
-        editingNoteIndex !== null
-          ? "Note updated successfully"
-          : "Note added successfully",
+        editingNoteIndex !== null ? "Note updated successfully" : "Note added successfully",
         { type: "success" }
       );
 
@@ -397,24 +381,37 @@ const PatientNotes = () => {
     setOnObservation(noteToEdit.onObservation || "");
     setOnPalpation(noteToEdit.onPalpation || "");
     setPainAssessmentNPRS(noteToEdit.painAssessmentNPRS || "");
-    setMmt(
-      Array.isArray(noteToEdit.mmt)
-        ? noteToEdit.mmt.map((joint) => ({
-            joint: joint.joint,
-            actions: joint.actions.map((action) => ({
+     setMmt(
+    Array.isArray(noteToEdit.mmt)
+      ? noteToEdit.mmt?.map((joint) => ({
+          joint: joint.joint,
+          right: {
+            actions: joint.right?.actions?.map((action) => ({
               action: action.action,
               grade: action.grade,
             })),
-          }))
-        : []
-    );
+          },
+          left: {
+            actions: joint.left?.actions?.map((action) => ({
+              action: action.action,
+              grade: action.grade,
+            })),
+          },
+        }))
+      : []
+  );
+
     const initialGradesSelection: { [key: string]: string } = {};
-    noteToEdit.mmt.forEach((joint) => {
-      joint.actions.forEach((action) => {
-        const jointActionKey = `${joint.joint}-${action.action}`;
-        initialGradesSelection[jointActionKey] = action.grade;
-      });
+     noteToEdit.mmt.forEach((joint) => {
+    joint.right.actions.forEach((action) => {
+      const jointActionKey = `${joint.joint}-${action.action}-right`;
+      initialGradesSelection[jointActionKey] = action.grade;
     });
+    joint.left.actions.forEach((action) => {
+      const jointActionKey = `${joint.joint}-${action.action}-left`;
+      initialGradesSelection[jointActionKey] = action.grade;
+    });
+  });
     setGradesSelection(initialGradesSelection);
     setTreatment(noteToEdit.treatment || "");
     setAdditionalNotes(noteToEdit.additionalNotes || []); // Set the array
@@ -641,26 +638,50 @@ const PatientNotes = () => {
                         { label: "On Examination", value: note.onExamination },
 
             {
-              label: "MMT",
-              value:
-                note.mmt && note.mmt.length > 0
-                  ? note.mmt
-                      .map(
-                        (j) =>
-                          `${j.joint}: ${j.actions
-                            .map((a) => `${a.action} ${a.grade}`)
-                            .join(" | ")}`
-                      )
-                      .join("\n")
-                  : undefined,
-            },
+  label: "MMT",
+  value:
+    note.mmt && note.mmt.length > 0
+      ? note.mmt
+          ?.map((joint) => {
+            const jointActions = [];
+
+            // If the joint has right actions
+            if (joint.right?.actions?.length > 0) {
+              jointActions.push(
+                `Right: ${joint.right.actions
+                  .map((action) => `${action.action}: ${action.grade}`)
+                  .join(" | ")}`
+              );
+            }
+
+            // If the joint has left actions
+            if (joint.left?.actions?.length > 0) {
+              jointActions.push(
+                `Left: ${joint.left.actions
+                  .map((action) => `${action.action}: ${action.grade}`)
+                  .join(" | ")}`
+              );
+            }
+
+            // If no actions exist for either side, mark it as "N/A"
+            if (jointActions.length === 0) {
+              jointActions.push("N/A");
+            }
+
+            // Return the formatted string for this joint
+            return `${joint.joint}: ${jointActions.join(" | ")}`;
+          })
+          .join("\n")
+      : undefined,
+}
+,
             { label: "Treatment", value: note.treatment },
             {
               label: "Additional Notes",
               value:
                 note.additionalNotes && note.additionalNotes.length > 0
                   ? note.additionalNotes
-                      .map((an) => `${an.heading}: ${an.description}`)
+                      ?.map((an) => `${an.heading}: ${an.description}`)
                       .join("\n")
                   : undefined,
             },
@@ -877,7 +898,7 @@ const PatientNotes = () => {
             scrollButtons="auto"
             allowScrollButtonsMobile
           >
-            {sortedNotes.map((note, index) => (
+            {sortedNotes?.map((note, index) => (
               <Tab
                 key={index}
                 label={new Date(note.noteDate).toLocaleDateString()}
@@ -1000,24 +1021,42 @@ const PatientNotes = () => {
                     style={{ whiteSpace: "pre-line" }}
                   >
                     <strong>MMT:</strong>{" "}
-                    {sortedNotes[tabIndex]?.mmt &&
-                    sortedNotes[tabIndex]?.mmt.length > 0
-                      ? sortedNotes[tabIndex].mmt.map((joint) => (
-                          <Box key={joint.joint} mb={2}>
-                            <Typography variant="h6" fontWeight="bold">
-                              {joint.joint}
-                            </Typography>
-                            <Typography variant="body2" color="textSecondary">
-                              {joint.actions
-                                .map(
-                                  (action) =>
-                                    `${action.action}: ${action.grade}` // Join action and grade
-                                )
-                                .join(" | ")}
-                            </Typography>
-                          </Box>
-                        ))
-                      : "N/A"}
+                    {sortedNotes[tabIndex]?.mmt && sortedNotes[tabIndex]?.mmt.length > 0 ? (
+  sortedNotes[tabIndex].mmt.map((joint) => (
+    <Box key={joint.joint} mb={2}>
+      <Typography variant="h6" fontWeight="bold">
+        {joint.joint}
+      </Typography>
+      <Typography variant="body2" color="textSecondary">
+        {joint.right?.actions?.length > 0 && (
+          <>
+            <strong>Right:</strong>{" "}
+            {joint.right.actions
+              .map((action) => `${action.action}: ${action.grade}`)
+              .join(" | ")}
+          </>
+        )}
+        {joint.left?.actions?.length > 0 && (
+          <>
+            <br />
+            <strong>Left:</strong>{" "}
+            {joint.left.actions
+              .map((action) => `${action.action}: ${action.grade}`)
+              .join(" | ")}
+          </>
+        )}
+        {!joint.right?.actions?.length && !joint.left?.actions?.length && (
+          <em>No actions available</em>
+        )}
+      </Typography>
+    </Box>
+  ))
+) : (
+  <Typography variant="body2" color="textSecondary">
+    N/A
+  </Typography>
+)}
+
                   </Typography>
                 )}
 
@@ -1076,7 +1115,7 @@ const PatientNotes = () => {
                         <strong>Attached Images:</strong>
                       </Typography>
                       <Stack direction="row" spacing={2} flexWrap="wrap">
-                        {sortedNotes[tabIndex].images.map((img, idx) => (
+                        {sortedNotes[tabIndex].images?.map((img, idx) => (
                           <Box
                             key={idx}
                             sx={{
@@ -1253,13 +1292,13 @@ const PatientNotes = () => {
           <Typography variant="h6" fontWeight="bold">
             MMT (Manual Muscle Testing)
           </Typography>
-          {mmtActions.map((jointGroup) => (
+          {mmtActions?.map((jointGroup) => (
             <Box key={jointGroup.joint} my={3}>
               <Typography variant="h6" fontWeight="bold">
                 {jointGroup.joint}
               </Typography>
               <Stack direction="row" flexWrap="wrap" spacing={3}>
-                {jointGroup.actions.map((action) => (
+                {jointGroup.actions?.map((action) => (
                   <Box
                     key={action}
                     display="flex"
@@ -1277,29 +1316,41 @@ const PatientNotes = () => {
                     <Typography variant="body1" sx={{ flex: 1 }}>
                       {action}
                     </Typography>
-                    <FormControl sx={{ width: "80px" }}>
-                      <InputLabel>Grade</InputLabel>
-                      <Select
-                        value={
-                          gradesSelection[`${jointGroup.joint}-${action}`] || ""
-                        }
-                        onChange={(e) =>
-                          handleGradeChange(
-                            jointGroup.joint,
-                            action,
-                            e.target.value
-                          )
-                        }
-                        label="Grade"
-                        sx={{ backgroundColor: "#fff", borderRadius: "5px" }}
-                      >
-                        {grades.map((grade) => (
-                          <MenuItem key={grade} value={grade}>
-                            {grade}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                   <FormControl sx={{ width: "80px" }}>
+  <InputLabel>Left Grade</InputLabel>
+  <Select
+    value={gradesSelection[`${jointGroup.joint}-${action}-left`] || ""}
+    onChange={(e) =>
+      handleGradeChange(jointGroup.joint, action, "left", e.target.value)
+    }
+    label="Left Grade"
+    sx={{ backgroundColor: "#fff", borderRadius: "5px" }}
+  >
+    {grades.map((grade) => (
+      <MenuItem key={grade} value={grade}>
+        {grade}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
+
+<FormControl sx={{ width: "80px" }}>
+  <InputLabel>Right Grade</InputLabel>
+  <Select
+    value={gradesSelection[`${jointGroup.joint}-${action}-right`] || ""}
+    onChange={(e) =>
+      handleGradeChange(jointGroup.joint, action, "right", e.target.value)
+    }
+    label="Right Grade"
+    sx={{ backgroundColor: "#fff", borderRadius: "5px" }}
+  >
+    {grades.map((grade) => (
+      <MenuItem key={grade} value={grade}>
+        {grade}
+      </MenuItem>
+    ))}
+  </Select>
+</FormControl>
                   </Box>
                 ))}
               </Stack>
@@ -1315,7 +1366,7 @@ const PatientNotes = () => {
 
           {additionalNotes.length > 0 && (
             <List dense disablePadding>
-              {additionalNotes.map((note, idx) => (
+              {additionalNotes?.map((note, idx) => (
                 <ListItem
                   key={`add-note-${idx}`}
                   secondaryAction={
@@ -1406,7 +1457,7 @@ const PatientNotes = () => {
               Existing Images for this Note:
             </Typography>
             <Stack direction="row" spacing={2} flexWrap="wrap">
-              {existingImagesToDisplay.map((img, idx) => (
+              {existingImagesToDisplay?.map((img, idx) => (
                 <Box
                   key={`existing-${idx}`}
                   sx={{
