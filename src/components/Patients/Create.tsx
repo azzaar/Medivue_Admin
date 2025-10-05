@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useState } from "react";
 import {
   Create,
@@ -14,11 +15,8 @@ const PatientCreate = () => {
   const [linkedDoctorId, setLinkedDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get doctor ID from localStorage
     const doctorId = localStorage.getItem("linkedDoctorId");
     setLinkedDoctorId(doctorId);
-
-
   }, []);
 
   return (
@@ -36,15 +34,29 @@ const PatientCreate = () => {
           required
         />
 
+        {/* NEW: Status (default to active) */}
+        <SelectInput
+          source="status"
+          label="Status"
+          choices={[
+            { id: "active", name: "Active" },
+            { id: "closed", name: "Closed" },
+          ]}
+          defaultValue="active"
+        />
+
         {/* Automatically fill in doctorId based on the logged-in user's linkedDoctorId */}
-        {linkedDoctorId !=='null' ? (
-          <TextInput source="doctorId" defaultValue={linkedDoctorId} style={{ display: "none" }} />
+        {linkedDoctorId !== "null" && linkedDoctorId !== null ? (
+          <TextInput
+            source="doctorId"
+            defaultValue={linkedDoctorId}
+            style={{ display: "none" }}
+          />
         ) : (
           <ReferenceInput
             source="doctorId"
             reference="doctors"
-              label="Assigned Doctor"
-              
+            label="Assigned Doctor"
           >
             <SelectInput optionText="name" required />
           </ReferenceInput>
@@ -58,17 +70,11 @@ const PatientCreate = () => {
         <TextInput source="address.state" label="State" />
         <TextInput source="address.postalCode" label="Postal Code" />
 
-        <TextInput
-          source="emergencyContactName"
-          label="Emergency Contact Name"
-        />
+        <TextInput source="emergencyContactName" label="Emergency Contact Name" />
         <TextInput source="emergencyContactRelation" label="Relation" />
-        <TextInput
-          source="emergencyContactNumber"
-          label="Emergency Contact Number"
-        />
+        <TextInput source="emergencyContactNumber" label="Emergency Contact Number" />
 
-            <TextInput source="condition" label="Condition" />
+        <TextInput source="condition" label="Condition" />
 
         <ArrayInput source="medications">
           <SimpleFormIterator>

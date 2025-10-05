@@ -8,6 +8,8 @@ const doctorFilters = [
 const DoctorList = () => (
   <List filters={doctorFilters}>
     <Datagrid bulkActionButtons={false}>
+            <TextField source="doctorId" label='Doctor Id'/>
+
       <TextField source="name" />
       <TextField source="specialization" />
       <TextField source="email" />

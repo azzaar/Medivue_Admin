@@ -10,7 +10,18 @@ import {
   useRefresh,
   HttpError,
 } from "react-admin";
-import { Box, Button, Paper, Stack, Typography, Divider } from "@mui/material";
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  Typography,
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
@@ -25,10 +36,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
   const { data, isLoading, error } = useGetOne("patients", {
     id: patientId,
   });
+
   const [visitedDates, setVisitedDates] = useState<Date[]>([]);
   const [selection, setSelection] = useState<Date | null>(null);
+  const [activeStartDate, setActiveStartDate] = useState<Date>(new Date());
 
-  // load existing visits
   useEffect(() => {
     if (data?.visitedDays) {
       setVisitedDates(data.visitedDays.map((d: string) => new Date(d)));
@@ -45,13 +57,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
       </Paper>
     );
 
-  // handle single vs double click
+  // Handle double-click mark/unmark
   const handleClickDay = (
     date: Date,
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     if (event.detail === 2) {
-      // double‑click: toggle mark/unmark
       const iso = date.toISOString();
       const already = visitedDates.some((d) => d.toISOString() === iso);
       const action = already ? "unmark-visit" : "mark-visit";
@@ -63,24 +74,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
           setSelection(null);
         })
         .catch((err: unknown) => {
-          // First try to treat it as React‑Admin's HttpError
-          if (err instanceof HttpError) {
-            notify(err.message, { type: "warning" });
-            return;
-          }
-          // Next, native JS Error
-          if (err instanceof Error) {
-            notify(err.message, { type: "warning" });
-            return;
-          }
+          if (err instanceof HttpError) return notify(err.message, { type: "warning" });
+          if (err instanceof Error) return notify(err.message, { type: "warning" });
         });
     } else {
-      // single‑click: just select
       setSelection(date);
     }
   };
 
-  // one‑day batch
+  // Single selection mark/unmark
   const batchSingle = (mark: boolean) => {
     if (!selection) return;
     const iso = selection.toISOString();
@@ -93,20 +95,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         setSelection(null);
       })
       .catch((err: unknown) => {
-          // First try to treat it as React‑Admin's HttpError
-          if (err instanceof HttpError) {
-            notify(err.message, { type: "warning" });
-            return;
-          }
-          // Next, native JS Error
-          if (err instanceof Error) {
-            notify(err.message, { type: "warning" });
-            return;
-          }
-        });
+        if (err instanceof HttpError) return notify(err.message, { type: "warning" });
+        if (err instanceof Error) return notify(err.message, { type: "warning" });
+      });
   };
 
-  // green dot styling
+  // Calendar month navigation
+  const handleActiveStartDateChange = (payload: { activeStartDate: Date }) => {
+    if (payload?.activeStartDate) setActiveStartDate(payload.activeStartDate);
+  };
+
+  // Green highlight for visited days
   const tileClassName = ({ date, view }: { date: Date; view: string }) => {
     if (
       view === "month" &&
@@ -117,15 +116,51 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     return null;
   };
 
+  // Filter visits for the active month
+  const monthVisits = visitedDates
+    .filter(
+      (d) =>
+        d.getMonth() === activeStartDate.getMonth() &&
+        d.getFullYear() === activeStartDate.getFullYear()
+    )
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  const monthLabel = activeStartDate.toLocaleString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+
+  // --- Summary calculations ---
+  const totalVisits = visitedDates.length;
+
+  // Group visits by month-year for summary
+  const monthlySummary: Record<string, number> = {};
+  visitedDates.forEach((d) => {
+    const key = `${d.toLocaleString("default", {
+      month: "long",
+    })} ${d.getFullYear()}`;
+    monthlySummary[key] = (monthlySummary[key] || 0) + 1;
+  });
+
+  const sortedMonthlySummary = Object.entries(monthlySummary).sort(
+    ([aMonth], [bMonth]) => {
+      const aDate = new Date(aMonth);
+      const bDate = new Date(bMonth);
+      return aDate.getTime() - bDate.getTime();
+    }
+  );
+
   return (
-    <Paper sx={{ p: 2, maxWidth: 400, mx: "auto" }}>
+    <Paper sx={{ p: 2, maxWidth: 450, mx: "auto" }}>
       <Typography variant="h6" gutterBottom>
         {data.name} — Visits
       </Typography>
       <Divider sx={{ mb: 2 }} />
 
+      {/* Calendar */}
       <Calendar
         onClickDay={handleClickDay}
+        onActiveStartDateChange={handleActiveStartDateChange}
         tileClassName={tileClassName}
         prevLabel={<ChevronLeftIcon />}
         nextLabel={<ChevronRightIcon />}
@@ -137,6 +172,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         showNeighboringMonth={false}
       />
 
+      {/* Selection Controls */}
       {selection && (
         <Box mt={2}>
           <Typography>Selected: {selection.toLocaleDateString()}</Typography>
@@ -160,13 +196,56 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
             </Button>
           </Stack>
           <Typography variant="caption" display="block" mt={1}>
-            (Double‑click a day to toggle)
+            (Double-click a day to toggle)
           </Typography>
         </Box>
       )}
 
+      {/* This Month Summary */}
+      <Divider sx={{ my: 2 }} />
+      <Typography variant="subtitle2">
+        {monthLabel} — Visited Days ({monthVisits.length})
+      </Typography>
+      <Typography variant="body2" sx={{ mt: 0.5 }}>
+        {monthVisits.length
+          ? monthVisits.map((d) => d.toLocaleDateString()).join(", ")
+          : "No visits this month."}
+      </Typography>
+
+      {/* Total Summary */}
+      <Divider sx={{ my: 2 }} />
+      <Typography variant="subtitle2">Total Visits Recorded: {totalVisits}</Typography>
+
+      {/* Month-based Summary Table */}
+      {sortedMonthlySummary.length > 0 && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle2" gutterBottom>
+            Month-wise Visit Summary
+          </Typography>
+          <Table size="small">
+            <TableBody>
+              {sortedMonthlySummary.map(([month, count]) => (
+                <TableRow key={month}>
+                  <TableCell sx={{ borderBottom: "none" }}>
+                    <Typography variant="body2">{month}</Typography>
+                  </TableCell>
+                  <TableCell
+                    sx={{ borderBottom: "none" }}
+                    align="right"
+                  >
+                    <Typography variant="body2" fontWeight="bold">
+                      {count}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+
       <style>{`
-        /* green circle for visited days */
         .visitedDay {
           background: #4caf50 !important;
           color: white !important;
