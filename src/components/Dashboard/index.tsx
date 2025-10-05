@@ -17,32 +17,27 @@ import {
   TableBody,
   MenuItem,
   Fade,
+  InputAdornment,
 } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import { useDataProvider, useNotify } from "react-admin";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
 
-// ===== Interfaces =====
+// ===== Types =====
 interface PatientSummary {
   id: string;
   name: string;
   totalVisits: number;
   totalPaid: number;
   totalDue: number;
-  date?: string;
 }
 
+type StatusFilter = "all" | "active" | "closed";
+
 interface Filter {
-  month: string;
-  year: string;
+  month: string;   // "1".."12"
+  year: string;    // "2025"
+  q: string;       // name search
+  status: StatusFilter;
 }
 
 interface Totals {
@@ -67,8 +62,22 @@ const Dashboard: React.FC = () => {
 
   const [rows, setRows] = useState<PatientSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [filter, setFilter] = useState<Filter>({ month: defaultMonth, year: defaultYear });
-  const [appliedFilter, setAppliedFilter] = useState<Filter>({ month: defaultMonth, year: defaultYear });
+
+  // top filter UI state (editable)
+  const [filter, setFilter] = useState<Filter>({
+    month: defaultMonth,
+    year: defaultYear,
+    q: "",
+    status: "all",
+  });
+
+  // applied filter (used to fetch)
+  const [appliedFilter, setAppliedFilter] = useState<Filter>({
+    month: defaultMonth,
+    year: defaultYear,
+    q: "",
+    status: "all",
+  });
 
   const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
   const fmt = (n: number) => nf.format(n);
@@ -86,17 +95,22 @@ const Dashboard: React.FC = () => {
             mode: "patient",
             month: appliedFilter.month,
             year: appliedFilter.year,
+            q: appliedFilter.q,             // backend supports name/q
+            status: appliedFilter.status,   // "active" | "closed" | "all"
           },
         });
         if (isMounted) setRows(res.data || []);
-      } catch (err) {
+      } catch (e) {
+        const err = e as Error;
         notify(err.message || "Failed to load summary", { type: "error" });
       } finally {
         if (isMounted) setLoading(false);
       }
     };
     fetchSummary();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [dataProvider, notify, appliedFilter]);
 
   // ===== Overall Totals =====
@@ -108,21 +122,7 @@ const Dashboard: React.FC = () => {
     return { totalFee, totalPaid, totalDue, totalVisits };
   }, [rows]);
 
-  // ===== Monthly Bar Chart Data =====
-  const monthlyChart = useMemo(() => {
-    const map: Record<string, { month: string; paid: number; due: number; fee: number }> = {};
-    rows.forEach((r) => {
-      const d = new Date(r.date || now);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      if (!map[key]) map[key] = { month: key, paid: 0, due: 0, fee: 0 };
-      map[key].paid += r.totalPaid || 0;
-      map[key].due += r.totalDue || 0;
-      map[key].fee += (r.totalPaid || 0) + (r.totalDue || 0);
-    });
-    return Object.values(map);
-  }, [rows]);
-
-  // ===== Loading Spinner =====
+  // ===== Loading =====
   if (loading) {
     return (
       <Box
@@ -142,31 +142,31 @@ const Dashboard: React.FC = () => {
   return (
     <Fade in timeout={400}>
       <Box sx={{ p: { xs: 2, md: 4 } }}>
-        {/* ===== Header ===== */}
+        {/* Header */}
         <Typography variant="h5" fontWeight={700} gutterBottom>
           🩺 Medivue Payment Dashboard
         </Typography>
         <Divider sx={{ mb: 3 }} />
 
-        {/* ===== Filter Bar ===== */}
+        {/* Filter Bar */}
         <Paper
           sx={{
             p: 2.5,
             mb: 4,
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: 2,
             borderRadius: 3,
+            alignItems: "center",
           }}
         >
+          {/* Month */}
           <TextField
             select
             label="Month"
             size="small"
             value={filter.month}
-            onChange={(e) => setFilter({ ...filter, month: e.target.value })}
-            sx={{ minWidth: 160 }}
+            onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
           >
             {months.map((m, i) => (
               <MenuItem key={i} value={i + 1}>
@@ -175,48 +175,77 @@ const Dashboard: React.FC = () => {
             ))}
           </TextField>
 
+          {/* Year */}
           <TextField
             label="Year"
             type="number"
             size="small"
             value={filter.year}
-            onChange={(e) => setFilter({ ...filter, year: e.target.value })}
-            sx={{ width: 120 }}
+            onChange={(e) => setFilter({ ...filter, year: String(e.target.value) })}
           />
 
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => setAppliedFilter(filter)}
-            sx={{ height: 40 }}
-          >
-            Apply
-          </Button>
-
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => {
-              const now = new Date();
-              const reset = {
-                month: String(now.getMonth() + 1),
-                year: String(now.getFullYear()),
-              };
-              setFilter(reset);
-              setAppliedFilter(reset);
+          {/* Name search */}
+          <TextField
+            label="Search name"
+            size="small"
+            value={filter.q}
+            onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
             }}
-            sx={{ height: 40 }}
+          />
+
+          {/* Status */}
+          <TextField
+            select
+            label="Status"
+            size="small"
+            value={filter.status}
+            onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
           >
-            Reset
-          </Button>
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="closed">Closed</MenuItem>
+          </TextField>
+
+          {/* Actions */}
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setAppliedFilter(filter)}
+            >
+              Apply
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => {
+                const reset: Filter = {
+                  month: String(now.getMonth() + 1),
+                  year: String(now.getFullYear()),
+                  q: "",
+                  status: "all",
+                };
+                setFilter(reset);
+                setAppliedFilter(reset);
+              }}
+            >
+              Reset
+            </Button>
+          </Box>
         </Paper>
 
-        {/* ===== KPI Cards ===== */}
+        {/* KPI Cards */}
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 4fr))",
-            gap: 1,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 2,
             mb: 4,
           }}
         >
@@ -225,63 +254,34 @@ const Dashboard: React.FC = () => {
             { label: "Total Paid", value: fmt(overall.totalPaid), color: "#4caf50", bg: "#e8f5e9" },
             { label: "Total Due", value: fmt(overall.totalDue), color: "#ff9800", bg: "#fff3e0" },
             { label: "Total Visits", value: fmt(overall.totalVisits), color: "#9c27b0", bg: "#f3e5f5" },
-          ].map((item, idx) => (
+          ].map((kpi, idx) => (
             <Card
               key={idx}
               sx={{
-                bgcolor: item.bg,
-                borderLeft: `5px solid ${item.color}`,
+                bgcolor: kpi.bg,
+                borderLeft: `5px solid ${kpi.color}`,
                 borderRadius: 3,
                 boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
               }}
             >
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary">
-                  {item.label}
+                  {kpi.label}
                 </Typography>
-                <Typography variant="h4" sx={{ color: item.color, fontWeight: 700 }}>
-                  {item.value}
+                <Typography variant="h4" sx={{ color: kpi.color, fontWeight: 700 }}>
+                  {kpi.value}
                 </Typography>
               </CardContent>
             </Card>
           ))}
         </Box>
 
-        {/* ===== Chart ===== */}
-        {monthlyChart.length > 1 && (
-          <Paper sx={{ p: 3, mb: 4, borderRadius: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              📊 Monthly Payment Overview
-            </Typography>
-            <ResponsiveContainer width="100%" height={340}>
-              <BarChart data={monthlyChart}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="month"
-                  tickFormatter={(m) => {
-                    const [y, mo] = m.split("-");
-                    return new Date(`${y}-${mo}-01`).toLocaleString("default", {
-                      month: "short",
-                    });
-                  }}
-                />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="paid" fill="#4caf50" name="Paid" />
-                <Bar dataKey="due" fill="#ff9800" name="Due" />
-                <Bar dataKey="fee" fill="#2196f3" name="Total" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
-        )}
-
-        {/* ===== Table ===== */}
+        {/* Table */}
         <Paper sx={{ p: 3, borderRadius: 3 }}>
           <Typography variant="h6" gutterBottom>
             👩‍⚕️ Patient Payment Summary
           </Typography>
-          <Table size="small">
+          <Table size="small" stickyHeader>
             <TableHead>
               <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
                 <TableCell>Patient</TableCell>
@@ -314,7 +314,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <TableRow>
                   <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                    No records found for selected month/year.
+                    No records found for selected filters.
                   </TableCell>
                 </TableRow>
               )}
