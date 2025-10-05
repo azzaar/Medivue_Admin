@@ -1,5 +1,5 @@
 // src/CalendarView.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import {
@@ -17,28 +17,43 @@ import {
   Stack,
   Typography,
   Divider,
+  TextField,
+  MenuItem,
   Table,
   TableBody,
-  TableCell,
   TableRow,
+  TableCell,
+  Chip,
 } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import PaidIcon from "@mui/icons-material/CheckCircle";
+import UnpaidIcon from "@mui/icons-material/ErrorOutline";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
 
 interface CalendarViewProps {
   patientId: string;
 }
 
+type Payment = { fee: number; paid: number };
+type PaymentMap = Record<string, Payment>;
+
+const DEFAULT_FEE = 300;
+const startOfDayISO = (d: Date) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
 const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
   const notify = useNotify();
   const refresh = useRefresh();
   const dataProvider = useDataProvider();
-  const { data, isLoading, error } = useGetOne("patients", {
-    id: patientId,
-  });
+  const { data, isLoading, error } = useGetOne("patients", { id: patientId });
 
   const [visitedDates, setVisitedDates] = useState<Date[]>([]);
-  const [selection, setSelection] = useState<Date | null>(null);
+  const [payments, setPayments] = useState<PaymentMap>({});
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [fee, setFee] = useState<number>(DEFAULT_FEE);
+  const [status, setStatus] = useState<"Paid" | "Unpaid">("Unpaid");
   const [activeStartDate, setActiveStartDate] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -47,211 +62,392 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     }
   }, [data]);
 
+  const loadPayments = async () => {
+    try {
+      const resp = await dataProvider.getList<any>(
+        `patients/${patientId}/visit-payments`,
+        {
+          pagination: { page: 1, perPage: 10000 },
+          sort: { field: "date", order: "ASC" },
+          filter: {},
+        }
+      );
+      const map: PaymentMap = {};
+      resp.data.forEach((row: any) => {
+        if (!row?.date) return;
+        map[row.date] = { fee: Number(row.fee || 0), paid: Number(row.paid || 0) };
+      });
+      setPayments(map);
+    } catch {
+      // backend not required for UI to work; ignore
+    }
+  };
+  useEffect(() => {
+    loadPayments();
+  }, [patientId]);
+
   if (isLoading) return <Loading />;
   if (error)
     return (
       <Paper sx={{ p: 2 }}>
-        <Typography color="error">
-          Error loading visits: {error.message}
-        </Typography>
+        <Typography color="error">Error loading visits: {error.message}</Typography>
       </Paper>
     );
 
-  // Handle double-click mark/unmark
-  const handleClickDay = (
-    date: Date,
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    if (event.detail === 2) {
-      const iso = date.toISOString();
-      const already = visitedDates.some((d) => d.toISOString() === iso);
+  const isVisited = (d: Date) => visitedDates.some((x) => sameDay(x, d));
+
+  // single click => editor; double click => quick toggle
+  const handleDayClick = (date: Date, evt: React.MouseEvent<HTMLButtonElement>) => {
+    if (evt.detail === 2) {
+      const already = isVisited(date);
       const action = already ? "unmark-visit" : "mark-visit";
       dataProvider
-        .create(`patients/${patientId}/${action}`, { data: { visitDate: iso } })
+        .create(`patients/${patientId}/${action}`, { data: { visitDate: date.toISOString() } })
         .then(() => {
-          notify(already ? "Unmarked visit" : "Marked visit", { type: "info" });
+          if (already) {
+            // remove visit + any stored payment for that date
+            const key = startOfDayISO(date);
+            setVisitedDates((prev) => prev.filter((d) => !sameDay(d, date)));
+            setPayments((p) => {
+              const copy = { ...p };
+              delete copy[key];
+              return copy;
+            });
+            notify("Unmarked visit & removed payment", { type: "success" });
+          } else {
+            setVisitedDates((prev) => [...prev, new Date(date)]);
+            notify("Marked visit", { type: "success" });
+          }
+          setSelectedDate(null);
           refresh();
-          setSelection(null);
         })
-        .catch((err: unknown) => {
-          if (err instanceof HttpError) return notify(err.message, { type: "warning" });
-          if (err instanceof Error) return notify(err.message, { type: "warning" });
+        .catch((err) => {
+          const msg = err instanceof HttpError ? err.message : (err as Error)?.message || "Failed";
+          notify(msg, { type: "warning" });
         });
-    } else {
-      setSelection(date);
+      return;
     }
+
+    // open editor inline
+    const key = startOfDayISO(date);
+    const pay = payments[key];
+    const f = pay?.fee ?? DEFAULT_FEE;
+    setSelectedDate(date);
+    setFee(f);
+    setStatus(pay && pay.paid >= f ? "Paid" : "Unpaid");
   };
 
-  // Single selection mark/unmark
-  const batchSingle = (mark: boolean) => {
-    if (!selection) return;
-    const iso = selection.toISOString();
-    const action = mark ? "mark-visit" : "unmark-visit";
-    dataProvider
-      .create(`patients/${patientId}/${action}`, { data: { visitDate: iso } })
-      .then(() => {
-        notify(mark ? "Marked visit" : "Unmarked visit", { type: "info" });
-        refresh();
-        setSelection(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof HttpError) return notify(err.message, { type: "warning" });
-        if (err instanceof Error) return notify(err.message, { type: "warning" });
+  // Save button:
+  // - If not visited => mark visit, then save payment
+  // - If visited => just save/update payment
+  const handleSave = async () => {
+    if (!selectedDate) return;
+    const key = startOfDayISO(selectedDate);
+    const already = isVisited(selectedDate);
+    const paid = status === "Paid" ? fee : 0;
+
+    try {
+      if (!already) {
+        await dataProvider.create(`patients/${patientId}/mark-visit`, {
+          data: { visitDate: key },
+        });
+        setVisitedDates((prev) => [...prev, new Date(selectedDate)]);
+      }
+      await dataProvider.create(`patients/${patientId}/visit-payment`, {
+        data: { date: key, fee, paid },
       });
-  };
-
-  // Calendar month navigation
-  const handleActiveStartDateChange = (payload: { activeStartDate: Date }) => {
-    if (payload?.activeStartDate) setActiveStartDate(payload.activeStartDate);
-  };
-
-  // Green highlight for visited days
-  const tileClassName = ({ date, view }: { date: Date; view: string }) => {
-    if (
-      view === "month" &&
-      visitedDates.some((d) => d.toDateString() === date.toDateString())
-    ) {
-      return "visitedDay";
+      setPayments((p) => ({ ...p, [key]: { fee, paid } }));
+      notify(already ? "Payment updated" : "Visit marked & payment saved", { type: "success" });
+      setSelectedDate(null);
+      refresh();
+    } catch (err) {
+      const msg = err instanceof HttpError ? err.message : (err as Error)?.message || "Failed";
+      notify(msg, { type: "warning" });
     }
-    return null;
   };
 
-  // Filter visits for the active month
-  const monthVisits = visitedDates
-    .filter(
-      (d) =>
-        d.getMonth() === activeStartDate.getMonth() &&
-        d.getFullYear() === activeStartDate.getFullYear()
-    )
-    .sort((a, b) => a.getTime() - b.getTime());
+  // Unmark button:
+  // - Only visible if date is already visited
+  // - Removes visit + payment history for that date
+  const handleUnmark = async () => {
+    if (!selectedDate) return;
+    const key = startOfDayISO(selectedDate);
+    if (!isVisited(selectedDate)) {
+      notify("No visit marked for this date.", { type: "info" });
+      return;
+    }
+    try {
+      await dataProvider.create(`patients/${patientId}/unmark-visit`, {
+        data: { visitDate: key },
+      });
+      setVisitedDates((prev) => prev.filter((d) => !sameDay(d, selectedDate)));
+      setPayments((p) => {
+        const copy = { ...p };
+        delete copy[key];
+        return copy;
+      });
+      notify("Unmarked visit & removed payment", { type: "success" });
+      setSelectedDate(null);
+      refresh();
+    } catch {
+      notify("Failed to unmark visit", { type: "warning" });
+    }
+  };
+
+  const tileContent = ({ date, view }: { date: Date; view: string }) => {
+    if (view !== "month") return null;
+    if (!isVisited(date)) return null;
+    const key = startOfDayISO(date);
+    const pay = payments[key];
+    const fullyPaid = pay ? pay.paid >= pay.fee : false;
+    const color = fullyPaid ? "#2e7d32" : "#ed6c02";
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: color,
+          marginLeft: 4,
+          marginTop: 2,
+        }}
+      />
+    );
+  };
+
+  const onMonthChange = (p: { activeStartDate: Date }) => {
+    if (p?.activeStartDate) setActiveStartDate(p.activeStartDate);
+  };
+
+  // Summaries
+  const monthVisits = useMemo(
+    () =>
+      visitedDates.filter(
+        (d) =>
+          d.getMonth() === activeStartDate.getMonth() &&
+          d.getFullYear() === activeStartDate.getFullYear()
+      ),
+    [visitedDates, activeStartDate]
+  );
 
   const monthLabel = activeStartDate.toLocaleString(undefined, {
     month: "long",
     year: "numeric",
   });
 
-  // --- Summary calculations ---
-  const totalVisits = visitedDates.length;
-
-  // Group visits by month-year for summary
-  const monthlySummary: Record<string, number> = {};
-  visitedDates.forEach((d) => {
-    const key = `${d.toLocaleString("default", {
-      month: "long",
-    })} ${d.getFullYear()}`;
-    monthlySummary[key] = (monthlySummary[key] || 0) + 1;
-  });
-
-  const sortedMonthlySummary = Object.entries(monthlySummary).sort(
-    ([aMonth], [bMonth]) => {
-      const aDate = new Date(aMonth);
-      const bDate = new Date(bMonth);
-      return aDate.getTime() - bDate.getTime();
+  const monthAgg = useMemo(() => {
+    let visits = 0,
+      paidVisits = 0,
+      feeSum = 0,
+      paidSum = 0;
+    for (const d of monthVisits) {
+      visits++;
+      const k = startOfDayISO(d);
+      const p = payments[k];
+      if (p) {
+        feeSum += p.fee;
+        paidSum += p.paid;
+        if (p.paid >= p.fee) paidVisits++;
+      }
     }
-  );
+    return {
+      visits,
+      paidVisits,
+      unpaidVisits: visits - paidVisits,
+      fee: feeSum,
+      paid: paidSum,
+      due: Math.max(0, feeSum - paidSum),
+    };
+  }, [monthVisits, payments]);
+
+  const overall = useMemo(() => {
+    const visits = visitedDates.length;
+    let paidVisits = 0,
+      feeSum = 0,
+      paidSum = 0;
+    for (const d of visitedDates) {
+      const k = startOfDayISO(d);
+      const p = payments[k];
+      if (p) {
+        feeSum += p.fee;
+        paidSum += p.paid;
+        if (p.paid >= p.fee) paidVisits++;
+      }
+    }
+    return {
+      visits,
+      paidVisits,
+      unpaidVisits: visits - paidVisits,
+      fee: feeSum,
+      paid: paidSum,
+      due: Math.max(0, feeSum - paidSum),
+    };
+  }, [visitedDates, payments]);
 
   return (
-    <Paper sx={{ p: 2, maxWidth: 450, mx: "auto" }}>
-      <Typography variant="h6" gutterBottom>
-        {data.name} — Visits
+    <Paper sx={{ p: 3, maxWidth: 720, mx: "auto" }}>
+      <Typography variant="h6" fontWeight={600} gutterBottom>
+        {data.name} — Visit & Payment Tracker
       </Typography>
       <Divider sx={{ mb: 2 }} />
 
-      {/* Calendar */}
       <Calendar
-        onClickDay={handleClickDay}
-        onActiveStartDateChange={handleActiveStartDateChange}
-        tileClassName={tileClassName}
+        onClickDay={handleDayClick}
         prevLabel={<ChevronLeftIcon />}
         nextLabel={<ChevronRightIcon />}
-        navigationLabel={({ label }) => (
-          <Typography variant="subtitle1" align="center">
-            {label}
-          </Typography>
-        )}
-        showNeighboringMonth={false}
+        tileContent={tileContent}
+        onActiveStartDateChange={onMonthChange}
       />
 
-      {/* Selection Controls */}
-      {selection && (
-        <Box mt={2}>
-          <Typography>Selected: {selection.toLocaleDateString()}</Typography>
-          <Stack direction="row" spacing={1} mt={1}>
-            <Button
+      {/* Inline editor panel */}
+      {selectedDate && (
+        <Box mt={3} p={2} border="1px solid #ddd" borderRadius={2} bgcolor="#fafafa">
+          <Typography variant="subtitle1" fontWeight={600}>
+            {selectedDate.toLocaleDateString()}
+          </Typography>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" mt={2}>
+            <TextField
+              label="Amount"
+              type="number"
               size="small"
-              variant="contained"
-              onClick={() => batchSingle(true)}
-            >
-              Mark
-            </Button>
-            <Button
+              value={fee}
+              onChange={(e) => setFee(Number(e.target.value))}
+              sx={{ width: { xs: "100%", sm: 180 } }}
+            />
+            <TextField
+              select
+              label="Payment"
               size="small"
-              variant="outlined"
-              onClick={() => batchSingle(false)}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as "Paid" | "Unpaid")}
+              sx={{ width: { xs: "100%", sm: 180 } }}
             >
-              Unmark
-            </Button>
-            <Button size="small" onClick={() => setSelection(null)}>
-              Clear
+              <MenuItem value="Paid">✅ Paid</MenuItem>
+              <MenuItem value="Unpaid">❌ Unpaid</MenuItem>
+            </TextField>
+
+            {/* Conditional CTA based on whether this date is already marked */}
+            {!isVisited(selectedDate) ? (
+              <Button variant="contained" onClick={handleSave}>
+                Save (Mark + Payment)
+              </Button>
+            ) : (
+              <>
+                <Button variant="contained" onClick={handleSave}>
+                  Save Payment
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleUnmark}
+                >
+                  Unmark & Remove Payment
+                </Button>
+              </>
+            )}
+            <Button variant="text" onClick={() => setSelectedDate(null)}>
+              Close
             </Button>
           </Stack>
+
           <Typography variant="caption" display="block" mt={1}>
-            (Double-click a day to toggle)
+            Double-click a day to toggle visit instantly.
           </Typography>
         </Box>
       )}
 
-      {/* This Month Summary */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="subtitle2">
-        {monthLabel} — Visited Days ({monthVisits.length})
+      {/* Month summary */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="subtitle2" fontWeight={700}>
+        {monthLabel} Summary
       </Typography>
-      <Typography variant="body2" sx={{ mt: 0.5 }}>
-        {monthVisits.length
-          ? monthVisits.map((d) => d.toLocaleDateString()).join(", ")
-          : "No visits this month."}
+      <Table size="small" sx={{ mt: 1 }}>
+        <TableBody>
+          <TableRow>
+            <TableCell>Visits</TableCell>
+            <TableCell align="right">{monthAgg.visits}</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Paid</TableCell>
+            <TableCell align="right" sx={{ color: "success.main" }}>
+              {monthAgg.paidVisits}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Unpaid</TableCell>
+            <TableCell align="right" sx={{ color: "warning.main" }}>
+              {monthAgg.unpaidVisits}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Fee</TableCell>
+            <TableCell align="right">{monthAgg.fee}</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Paid</TableCell>
+            <TableCell align="right" sx={{ color: "success.main" }}>
+              {monthAgg.paid}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Due</TableCell>
+            <TableCell align="right" sx={{ color: monthAgg.due > 0 ? "error.main" : "text.secondary" }}>
+              {monthAgg.due}
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+
+      {/* Overall summary */}
+      <Divider sx={{ my: 3 }} />
+      <Typography variant="subtitle2" fontWeight={700}>
+        Overall Summary
       </Typography>
+      <Table size="small" sx={{ mt: 1 }}>
+        <TableBody>
+          <TableRow>
+            <TableCell>Total Visits</TableCell>
+            <TableCell align="right">{overall.visits}</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Paid</TableCell>
+            <TableCell align="right" sx={{ color: "success.main" }}>
+              {overall.paidVisits}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Unpaid</TableCell>
+            <TableCell align="right" sx={{ color: "warning.main" }}>
+              {overall.unpaidVisits}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Fee</TableCell>
+            <TableCell align="right">{overall.fee}</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Paid</TableCell>
+            <TableCell align="right" sx={{ color: "success.main" }}>
+              {overall.paid}
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Total Due</TableCell>
+            <TableCell align="right" sx={{ color: overall.due > 0 ? "error.main" : "text.secondary" }}>
+              {overall.due}
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
 
-      {/* Total Summary */}
-      <Divider sx={{ my: 2 }} />
-      <Typography variant="subtitle2">Total Visits Recorded: {totalVisits}</Typography>
-
-      {/* Month-based Summary Table */}
-      {sortedMonthlySummary.length > 0 && (
-        <>
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" gutterBottom>
-            Month-wise Visit Summary
-          </Typography>
-          <Table size="small">
-            <TableBody>
-              {sortedMonthlySummary.map(([month, count]) => (
-                <TableRow key={month}>
-                  <TableCell sx={{ borderBottom: "none" }}>
-                    <Typography variant="body2">{month}</Typography>
-                  </TableCell>
-                  <TableCell
-                    sx={{ borderBottom: "none" }}
-                    align="right"
-                  >
-                    <Typography variant="body2" fontWeight="bold">
-                      {count}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </>
-      )}
-
-      <style>{`
-        .visitedDay {
-          background: #4caf50 !important;
-          color: white !important;
-          border-radius: 50% !important;
-        }
-      `}</style>
+      <Divider sx={{ my: 3 }} />
+      <Stack direction="row" spacing={1}>
+        <Chip icon={<PaidIcon />} label="Paid Visit" color="success" variant="outlined" />
+        <Chip icon={<UnpaidIcon />} label="Unpaid Visit" color="warning" variant="outlined" />
+      </Stack>
     </Paper>
   );
 };

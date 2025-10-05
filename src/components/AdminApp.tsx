@@ -32,6 +32,7 @@ import {
   JobCategoryEdit,
   JobCategoryShow,
 } from "./Job";
+import Dashboard from "./Dashboard";
 
 const AdminApp = () => {
   return (
@@ -41,6 +42,8 @@ const AdminApp = () => {
       defaultTheme="light"
       loginPage={CustomLoginPage}
       theme={theme}
+          dashboard={Dashboard}
+
       authProvider={customAuthProvider}
     >
       {(permissions) => (
