@@ -1,4 +1,3 @@
-// src/CalendarView.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
@@ -35,8 +34,21 @@ interface CalendarViewProps {
   patientId: string;
 }
 
-type Payment = { fee: number; paid: number };
-type PaymentMap = Record<string, Payment>;
+interface PaymentRecord {
+  id: number
+  date: string;
+  fee: number;
+  paid: number;
+}
+
+interface Patient {
+  id: string;
+  name: string;
+  visitedDays: string[];
+  payments?: PaymentRecord[];
+}
+
+type PaymentMap = Record<string, { fee: number; paid: number }>;
 
 const DEFAULT_FEE = 300;
 const startOfDayISO = (d: Date) =>
@@ -47,7 +59,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
   const notify = useNotify();
   const refresh = useRefresh();
   const dataProvider = useDataProvider();
-  const { data, isLoading, error } = useGetOne("patients", { id: patientId });
+
+  const { data, isLoading, error } = useGetOne<Patient>("patients", { id: patientId });
 
   const [visitedDates, setVisitedDates] = useState<Date[]>([]);
   const [payments, setPayments] = useState<PaymentMap>({});
@@ -56,56 +69,137 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
   const [status, setStatus] = useState<"Paid" | "Unpaid">("Unpaid");
   const [activeStartDate, setActiveStartDate] = useState<Date>(new Date());
 
+  /** 🔹 Derived values are placed before early returns to fix hook order */
+  const monthVisits = useMemo(
+    () =>
+      visitedDates.filter(
+        (d) =>
+          d.getMonth() === activeStartDate.getMonth() &&
+          d.getFullYear() === activeStartDate.getFullYear()
+      ),
+    [visitedDates, activeStartDate]
+  );
+
+  const monthLabel = useMemo(
+    () =>
+      activeStartDate.toLocaleString(undefined, {
+        month: "long",
+        year: "numeric",
+      }),
+    [activeStartDate]
+  );
+
+  const monthAgg = useMemo(() => {
+    let visits = 0,
+      paidVisits = 0,
+      feeSum = 0,
+      paidSum = 0;
+
+    for (const d of monthVisits) {
+      visits++;
+      const key = startOfDayISO(d);
+      const p = payments[key];
+      if (p) {
+        feeSum += p.fee;
+        paidSum += p.paid;
+        if (p.paid >= p.fee) paidVisits++;
+      }
+    }
+
+    return {
+      visits,
+      paidVisits,
+      unpaidVisits: visits - paidVisits,
+      fee: feeSum,
+      paid: paidSum,
+      due: Math.max(0, feeSum - paidSum),
+    };
+  }, [monthVisits, payments]);
+
+  const overall = useMemo(() => {
+    const visits = visitedDates.length;
+    let paidVisits = 0,
+      feeSum = 0,
+      paidSum = 0;
+
+    for (const d of visitedDates) {
+      const key = startOfDayISO(d);
+      const p = payments[key];
+      if (p) {
+        feeSum += p.fee;
+        paidSum += p.paid;
+        if (p.paid >= p.fee) paidVisits++;
+      }
+    }
+
+    return {
+      visits,
+      paidVisits,
+      unpaidVisits: visits - paidVisits,
+      fee: feeSum,
+      paid: paidSum,
+      due: Math.max(0, feeSum - paidSum),
+    };
+  }, [visitedDates, payments]);
+
+  /** 🔹 Load visited days */
   useEffect(() => {
     if (data?.visitedDays) {
-      setVisitedDates(data.visitedDays.map((d: string) => new Date(d)));
+      setVisitedDates(data.visitedDays.map((d) => new Date(d)));
     }
   }, [data]);
 
-  const loadPayments = async () => {
-    try {
-      const resp = await dataProvider.getList<any>(
-        `patients/${patientId}/visit-payments`,
-        {
-          pagination: { page: 1, perPage: 10000 },
-          sort: { field: "date", order: "ASC" },
-          filter: {},
-        }
-      );
-      const map: PaymentMap = {};
-      resp.data.forEach((row: any) => {
-        if (!row?.date) return;
-        map[row.date] = { fee: Number(row.fee || 0), paid: Number(row.paid || 0) };
-      });
-      setPayments(map);
-    } catch {
-      // backend not required for UI to work; ignore
-    }
-  };
+  /** 🔹 Load payment list */
   useEffect(() => {
+    const loadPayments = async () => {
+      try {
+        const resp = await dataProvider.getList<PaymentRecord>(
+          `patients/${patientId}/visit-payments`,
+          {
+            pagination: { page: 1, perPage: 10000 },
+            sort: { field: "date", order: "ASC" },
+            filter: {},
+          }
+        );
+        const map: PaymentMap = {};
+        resp.data.forEach((row) => {
+          if (!row?.date) return;
+          map[row.date] = {
+            fee: Number(row.fee || 0),
+            paid: Number(row.paid || 0),
+          };
+        });
+        setPayments(map);
+      } catch {
+        // silently ignore if not available
+      }
+    };
     loadPayments();
-  }, [patientId]);
+  }, [dataProvider, patientId]);
 
   if (isLoading) return <Loading />;
   if (error)
     return (
       <Paper sx={{ p: 2 }}>
-        <Typography color="error">Error loading visits: {error.message}</Typography>
+        <Typography color="error">
+          Error loading visits: {error.message}
+        </Typography>
       </Paper>
     );
 
   const isVisited = (d: Date) => visitedDates.some((x) => sameDay(x, d));
 
-  // single click => editor; double click => quick toggle
+  /** 🔹 Handle click on date cell */
   const handleDayClick = (date: Date, evt: React.MouseEvent<HTMLButtonElement>) => {
     if (evt.detail === 2) {
       const already = isVisited(date);
       const action = already ? "unmark-visit" : "mark-visit";
       dataProvider
-        .create(`patients/${patientId}/${action}`, { data: { visitDate: date.toISOString() } })
+        .create(`patients/${patientId}/${action}`, {
+          data: { visitDate: date.toISOString() },
+        })
         .then(() => {
           if (already) {
-            // remove visit + any stored payment for that date
             const key = startOfDayISO(date);
             setVisitedDates((prev) => prev.filter((d) => !sameDay(d, date)));
             setPayments((p) => {
@@ -122,13 +216,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
           refresh();
         })
         .catch((err) => {
-          const msg = err instanceof HttpError ? err.message : (err as Error)?.message || "Failed";
+          const msg =
+            err instanceof HttpError
+              ? err.message
+              : (err as Error)?.message || "Failed";
           notify(msg, { type: "warning" });
         });
       return;
     }
 
-    // open editor inline
     const key = startOfDayISO(date);
     const pay = payments[key];
     const f = pay?.fee ?? DEFAULT_FEE;
@@ -137,9 +233,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     setStatus(pay && pay.paid >= f ? "Paid" : "Unpaid");
   };
 
-  // Save button:
-  // - If not visited => mark visit, then save payment
-  // - If visited => just save/update payment
   const handleSave = async () => {
     if (!selectedDate) return;
     const key = startOfDayISO(selectedDate);
@@ -157,18 +250,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         data: { date: key, fee, paid },
       });
       setPayments((p) => ({ ...p, [key]: { fee, paid } }));
-      notify(already ? "Payment updated" : "Visit marked & payment saved", { type: "success" });
+      notify(already ? "Payment updated" : "Visit marked & payment saved", {
+        type: "success",
+      });
       setSelectedDate(null);
       refresh();
     } catch (err) {
-      const msg = err instanceof HttpError ? err.message : (err as Error)?.message || "Failed";
+      const msg =
+        err instanceof HttpError ? err.message : (err as Error)?.message || "Failed";
       notify(msg, { type: "warning" });
     }
   };
 
-  // Unmark button:
-  // - Only visible if date is already visited
-  // - Removes visit + payment history for that date
   const handleUnmark = async () => {
     if (!selectedDate) return;
     const key = startOfDayISO(selectedDate);
@@ -194,7 +287,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     }
   };
 
-  const tileContent = ({ date, view }: { date: Date; view: string }) => {
+  const tileContent = ({
+    date,
+    view,
+  }: {
+    date: Date;
+    view: string;
+  }): React.ReactNode => {
     if (view !== "month") return null;
     if (!isVisited(date)) return null;
     const key = startOfDayISO(date);
@@ -220,75 +319,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     if (p?.activeStartDate) setActiveStartDate(p.activeStartDate);
   };
 
-  // Summaries
-  const monthVisits = useMemo(
-    () =>
-      visitedDates.filter(
-        (d) =>
-          d.getMonth() === activeStartDate.getMonth() &&
-          d.getFullYear() === activeStartDate.getFullYear()
-      ),
-    [visitedDates, activeStartDate]
-  );
-
-  const monthLabel = activeStartDate.toLocaleString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
-
-  const monthAgg = useMemo(() => {
-    let visits = 0,
-      paidVisits = 0,
-      feeSum = 0,
-      paidSum = 0;
-    for (const d of monthVisits) {
-      visits++;
-      const k = startOfDayISO(d);
-      const p = payments[k];
-      if (p) {
-        feeSum += p.fee;
-        paidSum += p.paid;
-        if (p.paid >= p.fee) paidVisits++;
-      }
-    }
-    return {
-      visits,
-      paidVisits,
-      unpaidVisits: visits - paidVisits,
-      fee: feeSum,
-      paid: paidSum,
-      due: Math.max(0, feeSum - paidSum),
-    };
-  }, [monthVisits, payments]);
-
-  const overall = useMemo(() => {
-    const visits = visitedDates.length;
-    let paidVisits = 0,
-      feeSum = 0,
-      paidSum = 0;
-    for (const d of visitedDates) {
-      const k = startOfDayISO(d);
-      const p = payments[k];
-      if (p) {
-        feeSum += p.fee;
-        paidSum += p.paid;
-        if (p.paid >= p.fee) paidVisits++;
-      }
-    }
-    return {
-      visits,
-      paidVisits,
-      unpaidVisits: visits - paidVisits,
-      fee: feeSum,
-      paid: paidSum,
-      due: Math.max(0, feeSum - paidSum),
-    };
-  }, [visitedDates, payments]);
-
   return (
     <Paper sx={{ p: 3, maxWidth: 720, mx: "auto" }}>
       <Typography variant="h6" fontWeight={600} gutterBottom>
-        {data.name} — Visit & Payment Tracker
+        {data?.name ?? "Patient"} — Visit & Payment Tracker
       </Typography>
       <Divider sx={{ mb: 2 }} />
 
@@ -300,7 +334,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         onActiveStartDateChange={onMonthChange}
       />
 
-      {/* Inline editor panel */}
       {selectedDate && (
         <Box mt={3} p={2} border="1px solid #ddd" borderRadius={2} bgcolor="#fafafa">
           <Typography variant="subtitle1" fontWeight={600}>
@@ -328,7 +361,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
               <MenuItem value="Unpaid">❌ Unpaid</MenuItem>
             </TextField>
 
-            {/* Conditional CTA based on whether this date is already marked */}
             {!isVisited(selectedDate) ? (
               <Button variant="contained" onClick={handleSave}>
                 Save (Mark + Payment)
@@ -359,7 +391,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         </Box>
       )}
 
-      {/* Month summary */}
+      {/* Month Summary */}
       <Divider sx={{ my: 3 }} />
       <Typography variant="subtitle2" fontWeight={700}>
         {monthLabel} Summary
@@ -401,7 +433,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         </TableBody>
       </Table>
 
-      {/* Overall summary */}
+      {/* Overall Summary */}
       <Divider sx={{ my: 3 }} />
       <Typography variant="subtitle2" fontWeight={700}>
         Overall Summary
