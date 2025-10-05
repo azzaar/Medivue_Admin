@@ -17,11 +17,13 @@ import PatientEdit from "./Patients/Edit";
 import PatientList from "./Patients/List";
 import { PatientShow } from "./Patients/Show";
 import PatientNotes from "./Patients/Note";
+
 import {
   Person as PersonIcon,
   HealthAndSafety as GroupIcon,
   BookOnline,
-} from "@mui/icons-material"; // Import Material UI icons
+} from "@mui/icons-material";
+
 import theme from "@/utils/theme";
 import CustomLoginPage from "./CustomLoginPage";
 import DoctorProfilePage from "./Doctors/DoctorProfile";
@@ -39,56 +41,69 @@ const AdminApp = () => {
     <Admin
       layout={CustomLayout}
       dataProvider={customDataProvider}
-      defaultTheme="light"
+      authProvider={customAuthProvider}
       loginPage={CustomLoginPage}
       theme={theme}
-          dashboard={Dashboard}
-
-      authProvider={customAuthProvider}
+      defaultTheme="light"
     >
-      {(permissions) => (
-        <>
-          {permissions === "admin" && (
-            <>
-              <Resource
-                name="doctors"
-                list={DoctorList}
-                create={DoctorCreate}
-                edit={DoctorEdit}
-                show={DoctorShow}
-                icon={GroupIcon} // Add Group icon for Doctors
-              />
-              <Resource
-                name="appointments"
-                list={AppoinmentList}
-                icon={BookOnline} // Add Group icon for Doctors
-              />
-              <Resource
-                name="jobs"
-                list={JobCategoryList}
-                create={JobCategoryCreate}
-                edit={JobCategoryEdit}
-                show={JobCategoryShow}
-              />
-            </>
-          )}
-          <Resource
-            name="patients"
-            list={PatientList}
-            create={PatientCreate}
-            edit={PatientEdit}
-            show={PatientShow}
-            icon={PersonIcon} // Add Person icon for Patients
-          />
-          <CustomRoutes>
-            <Route
-              path="/doctors/:id/profile"
-              element={<DoctorProfilePage />}
+      {(permissions) => {
+        const isAdmin = permissions === "admin";
+
+        return (
+          <>
+            {/* ✅ Admin-only resources and dashboard */}
+            {isAdmin && (
+              <>
+                {/* Show Dashboard for Admins only */}
+                <Resource
+                  name="dashboard"
+                  options={{ label: "Dashboard" }}
+                  list={Dashboard} // trick: treat Dashboard as a list page
+                />
+
+                <Resource
+                  name="doctors"
+                  list={DoctorList}
+                  create={DoctorCreate}
+                  edit={DoctorEdit}
+                  show={DoctorShow}
+                  icon={GroupIcon}
+                />
+                <Resource
+                  name="appointments"
+                  list={AppoinmentList}
+                  icon={BookOnline}
+                />
+                <Resource
+                  name="jobs"
+                  list={JobCategoryList}
+                  create={JobCategoryCreate}
+                  edit={JobCategoryEdit}
+                  show={JobCategoryShow}
+                />
+              </>
+            )}
+
+            {/* ✅ Common resource for all users */}
+            <Resource
+              name="patients"
+              list={PatientList}
+              create={PatientCreate}
+              edit={PatientEdit}
+              show={PatientShow}
+              icon={PersonIcon}
             />
-            <Route path="/patients/:id/notes" element={<PatientNotes />} />
-          </CustomRoutes>
-        </>
-      )}
+
+            <CustomRoutes>
+              <Route
+                path="/doctors/:id/profile"
+                element={<DoctorProfilePage />}
+              />
+              <Route path="/patients/:id/notes" element={<PatientNotes />} />
+            </CustomRoutes>
+          </>
+        );
+      }}
     </Admin>
   );
 };
