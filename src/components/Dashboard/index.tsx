@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Grid,
   Card,
   CardContent,
   Typography,
@@ -16,8 +15,8 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Fade,
   MenuItem,
+  Fade,
 } from "@mui/material";
 import { useDataProvider, useNotify } from "react-admin";
 import {
@@ -31,6 +30,28 @@ import {
   Legend,
 } from "recharts";
 
+// ===== Interfaces =====
+interface PatientSummary {
+  id: string;
+  name: string;
+  totalVisits: number;
+  totalPaid: number;
+  totalDue: number;
+  date?: string;
+}
+
+interface Filter {
+  month: string;
+  year: string;
+}
+
+interface Totals {
+  totalFee: number;
+  totalPaid: number;
+  totalDue: number;
+  totalVisits: number;
+}
+
 const months = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -40,20 +61,25 @@ const Dashboard: React.FC = () => {
   const dataProvider = useDataProvider();
   const notify = useNotify();
 
-  const currentDate = new Date();
-  const defaultMonth = String(currentDate.getMonth() + 1);
-  const defaultYear = String(currentDate.getFullYear());
+  const now = new Date();
+  const defaultMonth = String(now.getMonth() + 1);
+  const defaultYear = String(now.getFullYear());
 
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<any[]>([]);
-  const [filter, setFilter] = useState({ month: defaultMonth, year: defaultYear });
-  const [appliedFilter, setAppliedFilter] = useState({ month: defaultMonth, year: defaultYear });
+  const [rows, setRows] = useState<PatientSummary[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<Filter>({ month: defaultMonth, year: defaultYear });
+  const [appliedFilter, setAppliedFilter] = useState<Filter>({ month: defaultMonth, year: defaultYear });
 
+  const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  const fmt = (n: number) => nf.format(n);
+
+  // ===== Fetch Data =====
   useEffect(() => {
+    let isMounted = true;
     const fetchSummary = async () => {
       setLoading(true);
       try {
-        const res = await dataProvider.getList("patients/payment-summary", {
+        const res = await dataProvider.getList<PatientSummary>("patients/payment-summary", {
           pagination: { page: 1, perPage: 10000 },
           sort: { field: "name", order: "ASC" },
           filter: {
@@ -62,20 +88,19 @@ const Dashboard: React.FC = () => {
             year: appliedFilter.year,
           },
         });
-        setRows(res.data || []);
-      } catch (err: any) {
+        if (isMounted) setRows(res.data || []);
+      } catch (err) {
         notify(err.message || "Failed to load summary", { type: "error" });
       } finally {
-        setTimeout(() => setLoading(false), 250);
+        if (isMounted) setLoading(false);
       }
     };
     fetchSummary();
+    return () => { isMounted = false; };
   }, [dataProvider, notify, appliedFilter]);
 
-  const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-  const fmt = (n: number) => nf.format(n);
-
-  const overall = useMemo(() => {
+  // ===== Overall Totals =====
+  const overall: Totals = useMemo(() => {
     const totalPaid = rows.reduce((s, r) => s + (r.totalPaid || 0), 0);
     const totalDue = rows.reduce((s, r) => s + (r.totalDue || 0), 0);
     const totalFee = totalPaid + totalDue;
@@ -83,11 +108,12 @@ const Dashboard: React.FC = () => {
     return { totalFee, totalPaid, totalDue, totalVisits };
   }, [rows]);
 
+  // ===== Monthly Bar Chart Data =====
   const monthlyChart = useMemo(() => {
-    const map: Record<string, any> = {};
+    const map: Record<string, { month: string; paid: number; due: number; fee: number }> = {};
     rows.forEach((r) => {
-      const date = new Date(r.date || Date.now());
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const d = new Date(r.date || now);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       if (!map[key]) map[key] = { month: key, paid: 0, due: 0, fee: 0 };
       map[key].paid += r.totalPaid || 0;
       map[key].due += r.totalDue || 0;
@@ -96,16 +122,26 @@ const Dashboard: React.FC = () => {
     return Object.values(map);
   }, [rows]);
 
-  if (loading)
+  // ===== Loading Spinner =====
+  if (loading) {
     return (
-      <Grid container justifyContent="center" alignItems="center" sx={{ height: "70vh" }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "70vh",
+        }}
+      >
         <CircularProgress />
-      </Grid>
+      </Box>
     );
+  }
 
+  // ===== Layout =====
   return (
-    <Fade in={!loading} timeout={400}>
-      <Box sx={{ p: { xs: 2, md: 4 }, width: "100%", maxWidth: "1600px", mx: "auto" }}>
+    <Fade in timeout={400}>
+      <Box sx={{ p: { xs: 2, md: 4 } }}>
         {/* ===== Header ===== */}
         <Typography variant="h5" fontWeight={700} gutterBottom>
           🩺 Medivue Payment Dashboard
@@ -115,14 +151,13 @@ const Dashboard: React.FC = () => {
         {/* ===== Filter Bar ===== */}
         <Paper
           sx={{
-            p: 2,
-            mb: 3,
-            borderRadius: 3,
+            p: 2.5,
+            mb: 4,
             display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-start",
             flexWrap: "wrap",
+            alignItems: "center",
             gap: 2,
+            borderRadius: 3,
           }}
         >
           <TextField
@@ -155,7 +190,7 @@ const Dashboard: React.FC = () => {
             onClick={() => setAppliedFilter(filter)}
             sx={{ height: 40 }}
           >
-            Apply Filter
+            Apply
           </Button>
 
           <Button
@@ -163,14 +198,12 @@ const Dashboard: React.FC = () => {
             color="secondary"
             onClick={() => {
               const now = new Date();
-              setFilter({
+              const reset = {
                 month: String(now.getMonth() + 1),
                 year: String(now.getFullYear()),
-              });
-              setAppliedFilter({
-                month: String(now.getMonth() + 1),
-                year: String(now.getFullYear()),
-              });
+              };
+              setFilter(reset);
+              setAppliedFilter(reset);
             }}
             sx={{ height: 40 }}
           >
@@ -179,66 +212,48 @@ const Dashboard: React.FC = () => {
         </Paper>
 
         {/* ===== KPI Cards ===== */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: "#e3f2fd", borderLeft: "5px solid #2196f3" }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 4fr))",
+            gap: 1,
+            mb: 4,
+          }}
+        >
+          {[
+            { label: "Total Fee", value: fmt(overall.totalFee), color: "#2196f3", bg: "#e3f2fd" },
+            { label: "Total Paid", value: fmt(overall.totalPaid), color: "#4caf50", bg: "#e8f5e9" },
+            { label: "Total Due", value: fmt(overall.totalDue), color: "#ff9800", bg: "#fff3e0" },
+            { label: "Total Visits", value: fmt(overall.totalVisits), color: "#9c27b0", bg: "#f3e5f5" },
+          ].map((item, idx) => (
+            <Card
+              key={idx}
+              sx={{
+                bgcolor: item.bg,
+                borderLeft: `5px solid ${item.color}`,
+                borderRadius: 3,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Total Fee
+                <Typography variant="subtitle2" color="text.secondary">
+                  {item.label}
                 </Typography>
-                <Typography variant="h4" color="primary.main">
-                  {fmt(overall.totalFee)}
+                <Typography variant="h4" sx={{ color: item.color, fontWeight: 700 }}>
+                  {item.value}
                 </Typography>
-                <Typography variant="caption">Expected (Paid + Due)</Typography>
               </CardContent>
             </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: "#e8f5e9", borderLeft: "5px solid #4caf50" }}>
-              <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Total Paid
-                </Typography>
-                <Typography variant="h4" color="success.main">
-                  {fmt(overall.totalPaid)}
-                </Typography>
-                <Typography variant="caption">Completed Payments</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: "#fff3e0", borderLeft: "5px solid #ff9800" }}>
-              <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Total Due
-                </Typography>
-                <Typography variant="h4" color="warning.main">
-                  {fmt(overall.totalDue)}
-                </Typography>
-                <Typography variant="caption">Pending Payments</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ bgcolor: "#f3e5f5", borderLeft: "5px solid #9c27b0" }}>
-              <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Total Visits
-                </Typography>
-                <Typography variant="h4">{fmt(overall.totalVisits)}</Typography>
-                <Typography variant="caption">Across all patients</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+          ))}
+        </Box>
 
-        {/* ===== Monthly Chart ===== */}
+        {/* ===== Chart ===== */}
         {monthlyChart.length > 1 && (
-          <Paper sx={{ p: 3, mb: 3 }}>
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 3 }}>
             <Typography variant="h6" gutterBottom>
-              📊 Monthly Overview
+              📊 Monthly Payment Overview
             </Typography>
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={340}>
               <BarChart data={monthlyChart}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
@@ -253,16 +268,16 @@ const Dashboard: React.FC = () => {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="paid" name="Paid" fill="#4caf50" />
-                <Bar dataKey="due" name="Due" fill="#ff9800" />
-                <Bar dataKey="fee" name="Total" fill="#2196f3" />
+                <Bar dataKey="paid" fill="#4caf50" name="Paid" />
+                <Bar dataKey="due" fill="#ff9800" name="Due" />
+                <Bar dataKey="fee" fill="#2196f3" name="Total" />
               </BarChart>
             </ResponsiveContainer>
           </Paper>
         )}
 
         {/* ===== Table ===== */}
-        <Paper sx={{ p: 3 }}>
+        <Paper sx={{ p: 3, borderRadius: 3 }}>
           <Typography variant="h6" gutterBottom>
             👩‍⚕️ Patient Payment Summary
           </Typography>
@@ -280,22 +295,23 @@ const Dashboard: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.name}</TableCell>
-                  <TableCell align="right">{r.totalVisits}</TableCell>
-                  <TableCell align="right" sx={{ color: "success.main" }}>
-                    {fmt(r.totalPaid)}
-                  </TableCell>
-                  <TableCell
-                    align="right"
-                    sx={{ color: r.totalDue ? "warning.main" : "text.secondary" }}
-                  >
-                    {fmt(r.totalDue)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {rows.length === 0 && (
+              {rows.length > 0 ? (
+                rows.map((r) => (
+                  <TableRow key={r.id} hover>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell align="right">{fmt(r.totalVisits)}</TableCell>
+                    <TableCell align="right" sx={{ color: "success.main" }}>
+                      {fmt(r.totalPaid)}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{ color: r.totalDue ? "warning.main" : "text.secondary" }}
+                    >
+                      {fmt(r.totalDue)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
                   <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
                     No records found for selected month/year.
