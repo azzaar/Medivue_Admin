@@ -5,5 +5,5 @@ import dynamic from 'next/dynamic';
 const AdminApp = dynamic(() => import('../AdminApp'), { ssr: false });
 
 export default function AdminAppWrapper() {
-  return <AdminApp />;
+  return <AdminApp/>;
 }
