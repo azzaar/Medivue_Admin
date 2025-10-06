@@ -34,7 +34,7 @@ interface PatientSummary {
 type StatusFilter = "all" | "active" | "closed";
 
 interface Filter {
-  month: string;   // "1".."12"
+  month: string;   // "1".."12" or "all"
   year: string;    // "2025"
   q: string;       // name search
   status: StatusFilter;
@@ -48,7 +48,7 @@ interface Totals {
 }
 
 const months = [
-  "January", "February", "March", "April", "May", "June",
+  "All", "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
@@ -57,7 +57,7 @@ const Dashboard: React.FC = () => {
   const notify = useNotify();
 
   const now = new Date();
-  const defaultMonth = String(now.getMonth() + 1);
+  const defaultMonth = "All"; // Set to "All" initially
   const defaultYear = String(now.getFullYear());
 
   const [rows, setRows] = useState<PatientSummary[]>([]);
@@ -93,7 +93,7 @@ const Dashboard: React.FC = () => {
           sort: { field: "name", order: "ASC" },
           filter: {
             mode: "patient",
-            month: appliedFilter.month,
+            month: appliedFilter.month === "All" ? "" : appliedFilter.month,  // Handle "All" month
             year: appliedFilter.year,
             q: appliedFilter.q,             // backend supports name/q
             status: appliedFilter.status,   // "active" | "closed" | "all"
@@ -169,9 +169,7 @@ const Dashboard: React.FC = () => {
             onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
           >
             {months.map((m, i) => (
-              <MenuItem key={i} value={i + 1}>
-                {m}
-              </MenuItem>
+              <MenuItem key={i} value={i === 0 ? "All" : i}>{m}</MenuItem>
             ))}
           </TextField>
 
@@ -226,7 +224,7 @@ const Dashboard: React.FC = () => {
               color="secondary"
               onClick={() => {
                 const reset: Filter = {
-                  month: String(now.getMonth() + 1),
+                  month: "All",
                   year: String(now.getFullYear()),
                   q: "",
                   status: "all",
@@ -249,7 +247,7 @@ const Dashboard: React.FC = () => {
             mb: 4,
           }}
         >
-          {[
+          {[ 
             { label: "Total Fee", value: fmt(overall.totalFee), color: "#2196f3", bg: "#e3f2fd" },
             { label: "Total Paid", value: fmt(overall.totalPaid), color: "#4caf50", bg: "#e8f5e9" },
             { label: "Total Due", value: fmt(overall.totalDue), color: "#ff9800", bg: "#fff3e0" },
