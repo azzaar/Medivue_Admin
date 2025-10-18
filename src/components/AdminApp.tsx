@@ -24,6 +24,12 @@ import {
   BookOnline,
 } from "@mui/icons-material";
 
+import WalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import { ExpenseList } from "./Expense/List";
+import { ExpenseCreate } from "./Expense/Create";
+import { ExpenseEdit } from "./Expense/Edit";
+import { ExpenseShow } from "./Expense/Show";
+
 import theme from "@/utils/theme";
 import CustomLoginPage from "./CustomLoginPage";
 import DoctorProfilePage from "./Doctors/DoctorProfile";
@@ -35,6 +41,7 @@ import {
   JobCategoryShow,
 } from "./Job";
 import Dashboard from "./Dashboard";
+
 
 const AdminApp = () => {
   return (
@@ -57,10 +64,15 @@ const AdminApp = () => {
                 {/* Show Dashboard for Admins only */}
                 <Resource
                   name="dashboard"
-                  options={{ label: "Dashboard" }}
+                  options={{ label: "Payment History" }}
                   list={Dashboard} // trick: treat Dashboard as a list page
                 />
-
+{/* <Resource
+  name="doctors-leave"
+  list={DoctorLeaveList}
+  create={DoctorLeaveCreate}
+  icon={TimeToLeave}
+/> */}
                 <Resource
                   name="doctors"
                   list={DoctorList}
@@ -70,12 +82,24 @@ const AdminApp = () => {
                   icon={GroupIcon}
                 />
                 <Resource
+  name="expenses"
+  list={ExpenseList}
+  create={ExpenseCreate}
+  edit={ExpenseEdit}
+  show={ExpenseShow}
+  icon={WalletIcon}
+/>
+                <Resource
                   name="appointments"
                   list={AppoinmentList}
+                                    options={{ label: "Website Bookings" }}
+
                   icon={BookOnline}
                 />
                 <Resource
                   name="jobs"
+                                    options={{ label: "Hiring Posts" }}
+
                   list={JobCategoryList}
                   create={JobCategoryCreate}
                   edit={JobCategoryEdit}

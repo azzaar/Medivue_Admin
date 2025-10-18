@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogTitle,
   Chip,
+  Typography,
 } from "@mui/material";
 import {
   List,
@@ -25,6 +26,10 @@ import {
   useNotify,
   useRefresh,
   HttpError,
+  ChipField,
+  ReferenceArrayField,
+  SingleFieldList,
+  useRecordContext,
 } from "react-admin";
 import CalendarView from "./CalendarView";
 import NotesButton from "./PatientNoteButton";
@@ -135,6 +140,44 @@ const PatientList = () => {
     setSelectedPatientId(patientId);
     setOpenCalendarDialog(true);
   };
+const DoctorCell: React.FC = () => {
+  const record = useRecordContext<{ doctorId?: string; doctorIds?: string[] }>();
+  if (!record) return null;
+
+  // Prefer multi-doctor view when available
+  if (Array.isArray(record.doctorIds) && record.doctorIds.length > 0) {
+    return (
+      <ReferenceArrayField
+        source="doctorIds"
+        reference="doctors"
+        // backend should support ?ids=... and return all
+        perPage={1000}
+      >
+        <SingleFieldList linkType={false}>
+          <ChipField source="name" />
+        </SingleFieldList>
+      </ReferenceArrayField>
+    );
+  }
+
+  // Fallback to legacy single doctorId
+  if (record.doctorId) {
+    return (
+      <ReferenceField
+        source="doctorId"
+        reference="doctors"
+        link={false}
+      >
+        <Typography component="span">
+          <ChipField source="name" />
+        </Typography>
+      </ReferenceField>
+    );
+  }
+
+  // Nothing linked
+  return <Typography color="text.secondary">—</Typography>;
+};
 
   return (
     <List
@@ -151,20 +194,14 @@ const PatientList = () => {
         <TextField source="condition" />
 
         {/* ✅ Clickable Status Chip */}
+         {permissions === "admin" && (
         <FunctionField
           label="Status"
           render={(record) => <StatusChip record={record} />}
         />
-
+         )}
         {permissions === "admin" && (
-          <ReferenceField
-            label="Doctor"
-            source="doctorId"
-            reference="doctors"
-            link={false}
-          >
-            <TextField source="name" />
-          </ReferenceField>
+         <DoctorCell/>
         )}
 
         <NotesButton />

@@ -8,7 +8,8 @@ import {
   SelectInput,
   ArrayInput,
   SimpleFormIterator,
-  ReferenceInput
+  ReferenceArrayInput,
+  SelectArrayInput
 } from "react-admin";
 
 const PatientEdit = () => {
@@ -54,13 +55,15 @@ const PatientEdit = () => {
             style={{ display: "none" }}
           />
         ) : (
-          <ReferenceInput
-            source="doctorId"
-            reference="doctors"
-            label="Assigned Doctor"
-          >
-            <SelectInput optionText="name" required />
-          </ReferenceInput>
+         <ReferenceArrayInput
+  source="doctorIds"
+  reference="doctors"
+  filter={{ all: true }}
+  perPage={1000}
+  sort={{ field: "name", order: "ASC" }}
+>
+  <SelectArrayInput optionText="name" optionValue="id" />
+</ReferenceArrayInput>
         )}
 
         {/* Contact Information */}

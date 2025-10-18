@@ -39,6 +39,7 @@ interface Patient {
 const customDataProvider: DataProvider = {
   getList: async (resource, params) => {
     const { page, perPage } = params.pagination || { page: 1, perPage: 10 };
+    
     const { field, order } = params.sort || { field: "id", order: "ASC" };
 
     const query = {
@@ -54,7 +55,7 @@ const customDataProvider: DataProvider = {
     const { headers, json } = await httpClient(url);
 
     return {
-      data: json.map((record: { _id: unknown }) => ({
+      data: json?.map((record: { _id: unknown }) => ({
         ...record,
         id: record._id,
       })),
@@ -73,7 +74,7 @@ const customDataProvider: DataProvider = {
     const url = `${apiUrl}/${resource}?ids=${ids}`;
     const { json } = await httpClient(url);
     return {
-      data: json.map((record: Patient) => ({ ...record, id: record._id })),
+      data: json?.map((record: Patient) => ({ ...record, id: record._id })),
     };
   },
 
@@ -84,7 +85,7 @@ const customDataProvider: DataProvider = {
     const url = `${apiUrl}/${resource}?${params.target}=${params.id}`;
     const { json } = await httpClient(url);
     return {
-      data: json.map((record: Patient) => ({ ...record, id: record._id })),
+      data: json?.map((record: Patient) => ({ ...record, id: record._id })),
       total: json.length,
     };
   },
