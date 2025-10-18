@@ -36,43 +36,67 @@ import NotesButton from "./PatientNoteButton";
 import { CalendarToday } from "@mui/icons-material";
 
 /** ✅ Status Chip — toggles backend status on click */
-const StatusChip: React.FC<{ record }> = ({ record }) => {
+type PatientStatus = "active" | "closed";
+
+const StatusChip: React.FC<{ record? }> = ({ record: propRecord }) => {
   const dataProvider = useDataProvider();
   const notify = useNotify();
   const refresh = useRefresh();
+  const ctxRecord = useRecordContext();
+  const record = propRecord ?? ctxRecord;
 
-  const currentStatus = (record?.status || "").toLowerCase();
-  const nextStatus = currentStatus === "active" ? "closed" : "active";
-  const color =
-    currentStatus === "active"
-      ? "success"
-      : currentStatus === "closed"
-      ? "default"
-      : "default";
+  const [loading, setLoading] = React.useState(false);
+
+  const currentStatus = String(record?.status ?? "").toLowerCase() as PatientStatus | "";
+  const nextStatus: PatientStatus = currentStatus === "active" ? "closed" : "active";
+
+  const color: "success" | "default" =
+    currentStatus === "active" ? "success" :
+    currentStatus === "closed" ? "default" : "default";
+
   const label =
-    currentStatus === "active"
-      ? "Active"
-      : currentStatus === "closed"
-      ? "Closed"
-      : "—";
+    currentStatus === "active" ? "Active" :
+    currentStatus === "closed" ? "Closed" : "—";
 
   const handleToggleStatus = async () => {
+    if (!record?.id && !record?._id) {
+      notify("Missing patient id", { type: "warning" });
+      return;
+    }
+    if (currentStatus !== "active" && currentStatus !== "closed") {
+      notify("Cannot change unknown status", { type: "warning" });
+      return;
+    }
+
+    setLoading(true);
     try {
-      // 🔥 Call your new backend route using dataProvider.create()
-      await dataProvider.create(`patients/${record.id}/changePatientStatus`, {
+      const id = record.id ?? record._id;
+
+      // OPTION A: direct custom route (POST to /patients/:id/changePatientStatus)
+      await dataProvider.create(`patients/${id}/changePatientStatus`, {
         data: { status: nextStatus },
       });
+
+      // OPTION B: if your dataProvider prefers standard resources:
+      // await dataProvider.update("patients", {
+      //   id,
+      //   data: { status: nextStatus },
+      //   previousData: record,
+      //   meta: { action: "changePatientStatus" }, // your backend can read meta.action
+      // });
 
       notify(`Status changed to ${nextStatus}`, { type: "info" });
       refresh();
     } catch (err: unknown) {
       if (err instanceof HttpError) {
-        notify(err.message, { type: "warning" });
+        notify(err.body?.message || err.message, { type: "warning" });
       } else if (err instanceof Error) {
         notify(err.message, { type: "warning" });
       } else {
         notify("Failed to change status.", { type: "warning" });
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,15 +105,18 @@ const StatusChip: React.FC<{ record }> = ({ record }) => {
       label={label}
       color={color}
       size="small"
-      onClick={handleToggleStatus}
+      onClick={loading ? undefined : handleToggleStatus}
+      disabled={loading}
       sx={{
-        cursor: "pointer",
+        cursor: loading ? "not-allowed" : "pointer",
         fontWeight: "bold",
         borderRadius: "6px",
+        opacity: loading ? 0.7 : 1,
       }}
     />
   );
 };
+
 
 const PatientList = () => {
   const { permissions } = usePermissions();

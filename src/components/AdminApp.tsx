@@ -24,11 +24,6 @@ import {
   BookOnline,
 } from "@mui/icons-material";
 
-import WalletIcon from "@mui/icons-material/AccountBalanceWallet";
-import { ExpenseList } from "./Expense/List";
-import { ExpenseCreate } from "./Expense/Create";
-import { ExpenseEdit } from "./Expense/Edit";
-import { ExpenseShow } from "./Expense/Show";
 
 import theme from "@/utils/theme";
 import CustomLoginPage from "./CustomLoginPage";
@@ -81,14 +76,14 @@ const AdminApp = () => {
                   show={DoctorShow}
                   icon={GroupIcon}
                 />
-                <Resource
+                {/* <Resource
   name="expenses"
   list={ExpenseList}
   create={ExpenseCreate}
   edit={ExpenseEdit}
   show={ExpenseShow}
   icon={WalletIcon}
-/>
+/> */}
                 <Resource
                   name="appointments"
                   list={AppoinmentList}
