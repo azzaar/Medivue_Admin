@@ -1,6 +1,6 @@
 "use client";
 
-import { useDataProvider, useNotify } from "react-admin";
+import { useDataProvider, useNotify, RaRecord } from "react-admin";
 import {
   Box,
   Button,
@@ -26,6 +26,9 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Paper,
+  Divider,
+  Tooltip,
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -35,23 +38,26 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import TextsmsIcon from "@mui/icons-material/Textsms"; // Icon for additional notes
+import TextsmsIcon from "@mui/icons-material/Textsms";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-// PDF Generation Imports
+// PDF
 import jsPDF from "jspdf";
 
-// Define the structure for each patient note
+// -------- Types --------
 interface MMTAction {
   action: string;
   grade: string;
 }
-
 interface MMT {
-  joint: string; // The joint name (e.g., "Shoulder", "Knee")
-  right: { actions: MMTAction[] }; // Right side actions
-  left: { actions: MMTAction[] };  // Left side actions
+  joint: string;
+  right: { actions: MMTAction[] };
+  left: { actions: MMTAction[] };
 }
-
+interface AdditionalNote {
+  heading: string;
+  description: string;
+}
 interface Note {
   noteDate: string;
   history?: string;
@@ -61,109 +67,110 @@ interface Note {
   onObservation?: string;
   onPalpation?: string;
   painAssessmentNPRS?: string;
-  mmt: MMT[]; // This is the array of joints and actions
+  mmt: MMT[];
   treatment?: string;
   additionalNotes?: AdditionalNote[];
   images: string[];
 }
-
-interface AdditionalNote {
-  heading: string;
-  description: string;
-}
-
-// Define the patient structure
-interface Patient {
-  id: string | number;
+interface Patient extends RaRecord {
   name: string;
   age?: number;
   gender?: string;
   phoneNumber?: string;
-  alternatePhoneNumber?: string; // New field
-  emergencyContact: {
+  alternatePhoneNumber?: string;
+  emergencyContact?: {
     name: string;
     relation: string;
     contactNumber: string;
   };
   email?: string;
-  condition?: string; // New field for condition
+  condition?: string;
   occupation?: string;
   chiefComplaint?: string;
-  address: {
+  address?: {
     street: string;
     city: string;
     state: string;
     postalCode: string;
   };
   notes: Note[];
-  [key: string]: unknown;
 }
 
-const CLINIC_NAME = "Medivue Health and Wellness Pvt Ltd";
+// -------- Clinic constants --------
+const CLINIC_NAME = "Medivue Health and Wellness";
 const CLINIC_ADDRESS =
   "Ward 21, No 98, Vettiyara P.O, Navaikulam, Thiruvananthapuram, Kerala - 695603";
 const CLINIC_PHONE = "+91 8089180303";
 const CLINIC_EMAIL = "info@medivue.life";
+const YOUR_LOGO_PATH = "/medivueLogo.jpeg";
 
-// ---------------------------
-
-const PatientNotes = () => {
+// -------- Component --------
+const PatientNotes: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const dataProvider = useDataProvider();
   const notify = useNotify();
 
   const [record, setRecord] = useState<Patient | null>(null);
-  const [noteDate, setNoteDate] = useState(new Date().toISOString().slice(0, 10));
-  const [history, setHistory] = useState("");
-  const [medications, setMedications] = useState("");
-  const [onObservation, setOnObservation] = useState("");
-  const [onPalpation, setOnPalpation] = useState("");
-  const [painAssessmentNPRS, setPainAssessmentNPRS] = useState("");
-  const [mmt, setMmt] = useState<MMT[]>([]); // MMT updated to an array of objects
-  const [treatment, setTreatment] = useState("");
+  const [viewMode, setViewMode] = useState<"notes" | "editor">("notes"); // <<< show either notes or editor
+  const [tabIndex, setTabIndex] = useState(0);
+
+  // editor state
+  const [noteDate, setNoteDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [history, setHistory] = useState<string>("");
+  const [medications, setMedications] = useState<string>("");
+  const [onObservation, setOnObservation] = useState<string>("");
+  const [onPalpation, setOnPalpation] = useState<string>("");
+  const [painAssessmentNPRS, setPainAssessmentNPRS] = useState<string>("");
+  const [mmt, setMmt] = useState<MMT[]>([]);
+  const [treatment, setTreatment] = useState<string>("");
   const [additionalNotes, setAdditionalNotes] = useState<AdditionalNote[]>([]);
-  const [newNoteHeading, setNewNoteHeading] = useState("");
-  const [newNoteDescription, setNewNoteDescription] = useState("");
-  const [chiefComplaint, setChiefComplaint] = useState("");
-  const [onExamination, setOnExamination] = useState("");
+  const [newNoteHeading, setNewNoteHeading] = useState<string>("");
+  const [newNoteDescription, setNewNoteDescription] = useState<string>("");
+  const [chiefComplaint, setChiefComplaint] = useState<string>("");
+  const [onExamination, setOnExamination] = useState<string>("");
   const [images, setImages] = useState<File[]>([]);
   const [existingImagesToDisplay, setExistingImagesToDisplay] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [tabIndex, setTabIndex] = useState(0);
+  const [gradesSelection, setGradesSelection] = useState<Record<string, string>>({});
+
+  const [loading, setLoading] = useState<boolean>(false);
+  const [pdfLoading, setPdfLoading] = useState<boolean>(false);
   const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState<boolean>(false);
   const [noteToDeleteIndex, setNoteToDeleteIndex] = useState<number | null>(null);
-  const [openImageDialog, setOpenImageDialog] = useState(false);
+  const [openImageDialog, setOpenImageDialog] = useState<boolean>(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null); // To help with deleting
-  const [gradesSelection, setGradesSelection] = useState<{ [key: string]: string }>({});
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
   const formRef = useRef<HTMLDivElement | null>(null);
 
+  // fetch patient
   useEffect(() => {
-    if (id !== undefined && id !== null) {
-      dataProvider
-        .getOne<Patient>("patients", { id: id as string | number })
-        .then(({ data }) => setRecord(data))
-        .catch((error) => {
-          console.error("Error fetching patient data:", error);
-          notify("Failed to load patient data", { type: "error" });
-        });
-    }
+    if (!id) return;
+    dataProvider
+      .getOne<Patient>("patients", { id })
+      .then(({ data }) => setRecord(data))
+      .catch(() => notify("Failed to load patient data", { type: "error" }));
   }, [id, dataProvider, notify]);
 
-  const sortedNotes = record && record.notes
-    ? [...record.notes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime())
-    : [];
+  const sortedNotes: Note[] =
+    record?.notes?.length ? [...record.notes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()) : [];
 
   useEffect(() => {
-    if (sortedNotes.length > 0 && tabIndex >= sortedNotes.length) {
-      setTabIndex(0);
-    } else if (sortedNotes.length === 0 && tabIndex !== 0) {
-      setTabIndex(0);
-    }
+    if (sortedNotes.length > 0 && tabIndex >= sortedNotes.length) setTabIndex(0);
+    if (sortedNotes.length === 0 && tabIndex !== 0) setTabIndex(0);
   }, [sortedNotes.length, tabIndex]);
+
+  // -------- UI helpers --------
+  const goToEditor = () => {
+    resetFormFields();
+    setViewMode("editor");
+    setEditingNoteIndex(null);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+  const backToNotes = () => {
+    resetFormFields();
+    setViewMode("notes");
+  };
 
   const resetFormFields = () => {
     setNoteDate(new Date().toISOString().slice(0, 10));
@@ -174,77 +181,100 @@ const PatientNotes = () => {
     setPainAssessmentNPRS("");
     setChiefComplaint("");
     setOnExamination("");
-    setMmt([]); // Reset MMT to an empty array
+    setMmt([]);
     setTreatment("");
-    setAdditionalNotes([]); // Reset array
+    setAdditionalNotes([]);
     setNewNoteHeading("");
     setNewNoteDescription("");
     setImages([]);
     setExistingImagesToDisplay([]);
     setEditingNoteIndex(null);
-    setGradesSelection({}); // Reset grades selection
+    setGradesSelection({});
   };
+
+  // -------- Additional notes handlers --------
   const handleAddAdditionalNote = () => {
-    setAdditionalNotes([
-      ...additionalNotes,
-      {
-        heading: newNoteHeading.trim(),
-        description: newNoteDescription.trim(),
-      },
+    setAdditionalNotes((prev) => [
+      ...prev,
+      { heading: newNoteHeading.trim(), description: newNoteDescription.trim() },
     ]);
     setNewNoteHeading("");
     setNewNoteDescription("");
   };
-
   const handleDeleteAdditionalNote = (indexToDelete: number) => {
-    setAdditionalNotes(
-      additionalNotes.filter((_, idx) => idx !== indexToDelete)
-    );
+    setAdditionalNotes((prev) => prev.filter((_, idx) => idx !== indexToDelete));
   };
- const handleGradeChange = (
-  joint: string,
-  action: string,
-  side: "right" | "left",  // Side can only be "right" or "left"
-  grade: string
-) => {
-  const jointActionKey = `${joint}-${action}-${side}`;
 
-  // Update grade for the respective joint-action-side
-  setGradesSelection((prev) => ({
-    ...prev,
-    [jointActionKey]: grade, // Store the grade for this specific action and side
-  }));
+  // -------- MMT handlers --------
+  const grades = ["0", "1", "1+", "2-", "2", "2+", "3-", "3", "3+", "4-", "4", "4+", "5-", "5"];
+  const mmtActions: { joint: string; actions: string[] }[] = [
+    { joint: "Shoulder", actions: ["Flexion", "Extension", "Abduction", "Adduction", "Internal Rotation", "External Rotation"] },
+    { joint: "Elbow", actions: ["Flexion", "Extension"] },
+    { joint: "Wrist", actions: ["Flexion", "Extension", "Radial Deviation", "Ulnar Deviation"] },
+    { joint: "Hip", actions: ["Flexion", "Abduction", "Adduction", "Internal Rotation", "External Rotation"] },
+    { joint: "Knee", actions: ["Flexion", "Extension"] },
+    { joint: "Ankle", actions: ["Plantarflexion", "Dorsiflexion"] },
+    { joint: "Foot", actions: ["Inversion", "Eversion"] },
+  ];
 
-  const updatedMmt = [...mmt];
-  const jointIndex = updatedMmt.findIndex((item) => item.joint === joint);
+  const handleGradeChange = (joint: string, action: string, side: "right" | "left", grade: string) => {
+    const key = `${joint}-${action}-${side}`;
+    setGradesSelection((p) => ({ ...p, [key]: grade }));
 
-  if (jointIndex > -1) {
-    // If the joint exists, find the action index
-    const actionIndex = updatedMmt[jointIndex][side].actions.findIndex(
-      (item) => item.action === action
-    );
-
-    if (actionIndex > -1) {
-      // If action exists, update the grade
-      updatedMmt[jointIndex][side].actions[actionIndex].grade = grade;
-    } else {
-      // If action doesn't exist, push a new action with the grade
-      updatedMmt[jointIndex][side].actions.push({ action, grade });
-    }
-  } else {
-    // If joint doesn't exist, add a new joint with actions
-    updatedMmt.push({
-      joint,
-      right: side === "right" ? { actions: [{ action, grade }] } : { actions: [] },
-      left: side === "left" ? { actions: [{ action, grade }] } : { actions: [] },
+    setMmt((prev) => {
+      const next = [...prev];
+      const jIdx = next.findIndex((j) => j.joint === joint);
+      if (jIdx === -1) {
+        next.push({
+          joint,
+          right: side === "right" ? { actions: [{ action, grade }] } : { actions: [] },
+          left: side === "left" ? { actions: [{ action, grade }] } : { actions: [] },
+        });
+        return next;
+      }
+      const list = next[jIdx][side].actions;
+      const aIdx = list.findIndex((a) => a.action === action);
+      if (aIdx === -1) list.push({ action, grade });
+      else list[aIdx].grade = grade;
+      return next;
     });
-  }
+  };
 
-  setMmt(updatedMmt);  // Update the MMT state with the new data
-};
+  // -------- Image handlers --------
+  const handleImageClick = (imageSrc: string, index: number | null) => {
+    setSelectedImage(imageSrc);
+    setSelectedImageIndex(index);
+    setOpenImageDialog(true);
+  };
+  const handleImageDialogClose = () => {
+    setOpenImageDialog(false);
+    setSelectedImage(null);
+    setSelectedImageIndex(null);
+  };
+  const handleDeleteExistingImage = () => {
+    if (selectedImageIndex !== null) {
+      setExistingImagesToDisplay((prev) => prev.filter((_, i) => i !== selectedImageIndex));
+      notify("Image removed from current note (save to confirm).", { type: "info" });
+      handleImageDialogClose();
+    }
+  };
 
+  const handleDownloadImage = (base64: string, noteDt: string, idx: number) => {
+    const mime = base64.match(/^data:(.*?);base64,/);
+    const ext = (mime ? mime[1] : "image/png").split("/")[1] || "png";
+    const a = document.createElement("a");
+    a.href = base64;
+    a.download = `patient_image_${(record?.name ?? "patient").replace(/\s/g, "_")}_${noteDt}_${idx}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  // -------- Save / Edit / Delete Notes --------
   const handleNoteSubmit = async () => {
-    if (
+    if (!record) return;
+
+    const empty =
       !history.trim() &&
       !chiefComplaint.trim() &&
       !onExamination.trim() &&
@@ -254,221 +284,154 @@ const PatientNotes = () => {
       !painAssessmentNPRS.trim() &&
       mmt.length === 0 &&
       !treatment.trim() &&
-      additionalNotes.length === 0 && // Check the array
+      additionalNotes.length === 0 &&
       images.length === 0 &&
-      existingImagesToDisplay.length === 0
-    ) {
-      notify("Please fill at least one note field or upload an image", { type: "warning" });
+      existingImagesToDisplay.length === 0;
+
+    if (empty) {
+      notify("Please fill at least one field or attach an image.", { type: "warning" });
       return;
     }
 
-    const newBase64Images = await Promise.all(
-      images?.map((file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        })
-      )
-    );
-
-    const allImages = [...existingImagesToDisplay, ...newBase64Images];
-
-    const updatedOrNewNote: Note = {
-      noteDate,
-      history: history.trim() || undefined,
-      chiefComplaint: chiefComplaint.trim() || undefined,
-      onExamination: onExamination.trim() || undefined,
-      medications: medications.trim() || undefined,
-      onObservation: onObservation.trim() || undefined,
-      onPalpation: onPalpation.trim() || undefined,
-      painAssessmentNPRS: painAssessmentNPRS.trim() || undefined,
-      mmt, // Using the updated mmt structure
-      treatment: typeof treatment === "string" ? treatment.trim() : undefined, // Ensure treatment is a string
-      additionalNotes:
-        additionalNotes.length > 0
-          ? additionalNotes?.map(({ heading, description }) => ({
-              heading: heading.trim(),
-              description: description.trim(),
-            }))
-          : undefined,
-      images: allImages,
-    };
-
-    if (!record) return;
-
     setLoading(true);
     try {
-      let updatedNotes: Note[];
+      const newBase64Images = await Promise.all(
+        images.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+      const allImages = [...existingImagesToDisplay, ...newBase64Images];
 
+      const updatedOrNew: Note = {
+        noteDate,
+        history: history.trim() || undefined,
+        chiefComplaint: chiefComplaint.trim() || undefined,
+        onExamination: onExamination.trim() || undefined,
+        medications: medications.trim() || undefined,
+        onObservation: onObservation.trim() || undefined,
+        onPalpation: onPalpation.trim() || undefined,
+        painAssessmentNPRS: painAssessmentNPRS.trim() || undefined,
+        mmt,
+        treatment: treatment.trim() || undefined,
+        additionalNotes:
+          additionalNotes.length > 0
+            ? additionalNotes.map((n) => ({ heading: n.heading.trim(), description: n.description.trim() }))
+            : undefined,
+        images: allImages,
+      };
+
+      let nextNotes: Note[];
       if (editingNoteIndex !== null) {
-        updatedNotes = [...record.notes];
-        // Find the index of the note to update
+        // find original index in record.notes matching sortedNotes[editingNoteIndex]
+        const target = sortedNotes[editingNoteIndex];
         const originalIndex = record.notes.findIndex(
-          (note) =>
-            note.noteDate === sortedNotes[editingNoteIndex].noteDate &&
-            note.history === sortedNotes[editingNoteIndex].history // Ensure you're updating the correct note
+          (n) => n.noteDate === target.noteDate && (n.history ?? "") === (target.history ?? "")
         );
-
-        if (originalIndex !== -1) {
-          // Replace the old note with the updated one
-          updatedNotes[originalIndex] = updatedOrNewNote;
-        } else {
-          console.warn("Original note not found for update, appending instead.");
-          updatedNotes.push(updatedOrNewNote); // In case of an unexpected condition, append the new note
-        }
+        nextNotes = [...record.notes];
+        if (originalIndex !== -1) nextNotes[originalIndex] = updatedOrNew;
+        else nextNotes.push(updatedOrNew);
       } else {
-        // If not editing, just append the new note
-        updatedNotes = [...(record.notes || []), updatedOrNewNote];
+        nextNotes = [...(record.notes || []), updatedOrNew];
       }
 
       await dataProvider.update("patients", {
-        id,
-        data: {
-          notes: updatedNotes, // Send the updated notes array
-        },
+        id: record.id,
+        data: { notes: nextNotes },
         previousData: record,
       });
 
-      notify(
-        editingNoteIndex !== null ? "Note updated successfully" : "Note added successfully",
-        { type: "success" }
-      );
+      notify(editingNoteIndex !== null ? "Note updated" : "Note added", { type: "success" });
 
+      // refresh record & go back to notes
+      const { data } = await dataProvider.getOne<Patient>("patients", { id: record.id });
+      setRecord(data);
+      setViewMode("notes");
       resetFormFields();
-
-      // Refresh the record after the update
-      dataProvider
-        .getOne<Patient>("patients", { id: id! })
-        .then(({ data }) => setRecord(data));
-    } catch (error) {
-      console.error("Note save/update error:", error);
-      notify("Failed to save/update note", { type: "error" });
+    } catch {
+      notify("Failed to save note", { type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownloadImage = (
-    base64String: string,
-    noteDate: string,
-    imgIndex: number
-  ) => {
-    const mimeTypeMatch = base64String.match(/^data:(.*?);base64,/);
-    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "image/png";
-    const extension = mimeType.split("/")[1] || "png";
-
-    const link = document.createElement("a");
-    link.href = base64String;
-    link.download = `patient_image_${record?.name.replace(
-      /\s/g,
-      "_"
-    )}_${noteDate}_${imgIndex}.${extension}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleEditNote = (index: number) => {
-    const noteToEdit = sortedNotes[index];
+    const note = sortedNotes[index];
     setEditingNoteIndex(index);
-    setNoteDate(noteToEdit.noteDate);
-    setHistory(noteToEdit.history || "");
-    setChiefComplaint(noteToEdit.chiefComplaint || "");
-    setOnExamination(noteToEdit.onExamination || "");
-    setMedications(noteToEdit.medications || "");
-    setOnObservation(noteToEdit.onObservation || "");
-    setOnPalpation(noteToEdit.onPalpation || "");
-    setPainAssessmentNPRS(noteToEdit.painAssessmentNPRS || "");
-     setMmt(
-    Array.isArray(noteToEdit.mmt)
-      ? noteToEdit.mmt?.map((joint) => ({
-          joint: joint.joint,
-          right: {
-            actions: joint.right?.actions?.map((action) => ({
-              action: action.action,
-              grade: action.grade,
-            })),
-          },
-          left: {
-            actions: joint.left?.actions?.map((action) => ({
-              action: action.action,
-              grade: action.grade,
-            })),
-          },
-        }))
-      : []
-  );
 
-    const initialGradesSelection: { [key: string]: string } = {};
-     noteToEdit.mmt.forEach((joint) => {
-    joint.right.actions.forEach((action) => {
-      const jointActionKey = `${joint.joint}-${action.action}-right`;
-      initialGradesSelection[jointActionKey] = action.grade;
+    setNoteDate(note.noteDate);
+    setHistory(note.history ?? "");
+    setChiefComplaint(note.chiefComplaint ?? "");
+    setOnExamination(note.onExamination ?? "");
+    setMedications(note.medications ?? "");
+    setOnObservation(note.onObservation ?? "");
+    setOnPalpation(note.onPalpation ?? "");
+    setPainAssessmentNPRS(note.painAssessmentNPRS ?? "");
+    setMmt(
+      Array.isArray(note.mmt)
+        ? note.mmt.map((j) => ({
+            joint: j.joint,
+            right: { actions: j.right?.actions?.map((a) => ({ action: a.action, grade: a.grade })) ?? [] },
+            left: { actions: j.left?.actions?.map((a) => ({ action: a.action, grade: a.grade })) ?? [] },
+          }))
+        : []
+    );
+
+    const initGrades: Record<string, string> = {};
+    note.mmt?.forEach((j) => {
+      j.right?.actions?.forEach((a) => (initGrades[`${j.joint}-${a.action}-right`] = a.grade));
+      j.left?.actions?.forEach((a) => (initGrades[`${j.joint}-${a.action}-left`] = a.grade));
     });
-    joint.left.actions.forEach((action) => {
-      const jointActionKey = `${joint.joint}-${action.action}-left`;
-      initialGradesSelection[jointActionKey] = action.grade;
-    });
-  });
-    setGradesSelection(initialGradesSelection);
-    setTreatment(noteToEdit.treatment || "");
-    setAdditionalNotes(noteToEdit.additionalNotes || []); // Set the array
-    setNewNoteHeading("");
-    setNewNoteDescription("");
+    setGradesSelection(initGrades);
+
+    setTreatment(note.treatment ?? "");
+    setAdditionalNotes(note.additionalNotes ?? []);
     setImages([]);
-    setExistingImagesToDisplay(noteToEdit.images || []);
+    setExistingImagesToDisplay(note.images ?? []);
 
-    if (formRef.current) {
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    setViewMode("editor");
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
 
   const handleDeleteClick = (index: number) => {
     setNoteToDeleteIndex(index);
     setOpenDeleteDialog(true);
   };
-
   const handleDeleteNoteConfirm = async () => {
     setOpenDeleteDialog(false);
     if (noteToDeleteIndex === null || !record) return;
 
     setLoading(true);
     try {
-      const noteToDelete = sortedNotes[noteToDeleteIndex];
+      const target = sortedNotes[noteToDeleteIndex];
       const originalIndex = record.notes.findIndex(
-        (note) =>
-          note.noteDate === noteToDelete.noteDate &&
-          note.history === noteToDelete.history
+        (n) => n.noteDate === target.noteDate && (n.history ?? "") === (target.history ?? "")
       );
-
-      const updatedNotes = [...record.notes];
-      if (originalIndex !== -1) {
-        updatedNotes.splice(originalIndex, 1);
-      } else {
-        console.warn(
-          "Note to delete not found in original array. Cannot delete."
-        );
-        notify("Failed to delete note: Note not found.", { type: "error" });
+      if (originalIndex === -1) {
+        notify("Note not found", { type: "warning" });
         return;
       }
+      const next = [...record.notes];
+      next.splice(originalIndex, 1);
 
       await dataProvider.update("patients", {
-        id,
-        data: {
-          notes: updatedNotes,
-        },
+        id: record.id,
+        data: { notes: next },
         previousData: record,
       });
 
-      notify("Note deleted successfully", { type: "success" });
+      notify("Note deleted", { type: "success" });
+
+      const { data } = await dataProvider.getOne<Patient>("patients", { id: record.id });
+      setRecord(data);
       resetFormFields();
-      dataProvider
-        .getOne<Patient>("patients", { id: id! })
-        .then(({ data }) => setRecord(data));
-    } catch (error) {
-      console.error("Note delete error:", error);
+      setViewMode("notes");
+    } catch {
       notify("Failed to delete note", { type: "error" });
     } finally {
       setLoading(false);
@@ -476,96 +439,44 @@ const PatientNotes = () => {
     }
   };
 
-  const handleDeleteDialogClose = () => {
-    setOpenDeleteDialog(false);
-    setNoteToDeleteIndex(null);
-  };
-
-  const handleImageClick = (imageSrc: string, index: number | null) => {
-    setSelectedImage(imageSrc);
-    setSelectedImageIndex(index); // Store index for deletion
-    setOpenImageDialog(true);
-  };
-
-  const handleImageDialogClose = () => {
-    setOpenImageDialog(false);
-    setSelectedImage(null);
-    setSelectedImageIndex(null);
-  };
-
-  const handleDeleteExistingImage = () => {
-    if (selectedImageIndex !== null && existingImagesToDisplay) {
-      const updatedImages = existingImagesToDisplay.filter(
-        (_, idx) => idx !== selectedImageIndex
-      );
-      setExistingImagesToDisplay(updatedImages);
-      handleImageDialogClose(); // Close dialog after deletion
-      notify("Image removed from current note edit.", { type: "info" });
-    }
-  };
-  const YOUR_LOGO_PATH = "/medivueLogo.jpeg";
-  // --- PDF GENERATION LOGIC ---
+  // -------- PDF --------
   const handleDownloadPdf = async () => {
-    if (!record) {
-      notify("No patient data to generate report.", { type: "warning" });
-      return;
-    }
-
+    if (!record) return notify("No patient data to export", { type: "warning" });
     setPdfLoading(true);
-    notify("Generating PDF report...", {
-      type: "info",
-      autoHideDuration: 3000,
-    });
-
     try {
       const doc = new jsPDF("p", "mm", "a4");
-      let yOffset = 10;
+      let y = 10;
 
-      // —————————————————————————
-      // Clinic Header (logo + name/address)
-      // —————————————————————————
+      // logo
       if (YOUR_LOGO_PATH) {
         const img = new Image();
         img.src = YOUR_LOGO_PATH;
-        await new Promise((res) => {
-          img.onload = res;
-          img.onerror = () => {
-            console.warn("Logo load failed, skipping.");
-            res(null);
-          };
+        await new Promise<void>((res) => {
+          img.onload = () => res();
+          img.onerror = () => res();
         });
         if (img.complete && img.naturalWidth) {
           const w = 30;
           const h = (img.height * w) / img.width;
-          doc.addImage(img, "JPEG", 10, yOffset, w, h);
-          yOffset += h + 5;
+          doc.addImage(img, "JPEG", 10, y, w, h);
+          y += h + 5;
         }
       }
+
       doc.setFontSize(18).setFont("helvetica", "bold");
-      doc.text(CLINIC_NAME, 105, yOffset, { align: "center" });
-      yOffset += 8;
+      doc.text(CLINIC_NAME, 105, y, { align: "center" });
+      y += 8;
       doc.setFontSize(10).setFont("helvetica", "normal");
-      doc.text(CLINIC_ADDRESS, 105, yOffset, { align: "center" });
-      yOffset += 5;
-      doc.text(
-        `Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`,
-        105,
-        yOffset,
-        {
-          align: "center",
-        }
-      );
-      yOffset += 15;
+      doc.text(CLINIC_ADDRESS, 105, y, { align: "center" });
+      y += 5;
+      doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, 105, y, { align: "center" });
+      y += 15;
 
-      // —————————————————————————
-      // Patient Information
-      // —————————————————————————
-      doc.setFontSize(14).setFont("helvetica", "bold");
-      doc.text("Patient Information", 15, yOffset);
-      yOffset += 8;
+      // patient info
+      doc.setFontSize(14).setFont("helvetica", "bold").text("Patient Information", 15, y);
+      y += 8;
       doc.setFontSize(11).setFont("helvetica", "normal");
-
-      const patientInfo = [
+      const lines = [
         `Name: ${record.name}`,
         `Age: ${record.age ?? "N/A"}`,
         `Gender: ${record.gender ?? "N/A"}`,
@@ -579,581 +490,309 @@ const PatientNotes = () => {
             : "N/A"
         }`,
       ];
-
-      // Loop through patient information
-      for (const line of patientInfo) {
-        if (yOffset > 280) {
+      for (const ln of lines) {
+        if (y > 280) {
           doc.addPage();
-          yOffset = 20;
+          y = 20;
         }
-        doc.text(line, 15, yOffset);
-        yOffset += 7;
+        doc.text(ln, 15, y);
+        y += 7;
       }
 
-      // —————————————————————————
-      // Notes Section Title
-      // —————————————————————————
-      yOffset += 10;
-      doc.setFontSize(14).setFont("helvetica", "bold");
-      doc.text("Patient Notes", 15, yOffset);
-      yOffset += 8;
+      y += 10;
+      doc.setFontSize(14).setFont("helvetica", "bold").text("Patient Notes", 15, y);
+      y += 8;
 
-      if (sortedNotes.length === 0) {
-        doc.setFontSize(11).setFont("helvetica", "italic");
-        doc.text("No notes available for this patient.", 15, yOffset);
-        yOffset += 7;
+      if (!sortedNotes.length) {
+        doc.setFontSize(11).setFont("helvetica", "italic").text("No notes available.", 15, y);
+        y += 7;
       } else {
-        // —————————————————————————
-        // Prioritize the Most Recent Notes
-        // —————————————————————————
-        const sortedNotesWithPriority = sortedNotes.sort(
-          (a, b) =>
-            new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
-        );
-
-        for (const note of sortedNotesWithPriority) {
-          if (yOffset > 270) {
+        const list = [...sortedNotes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime());
+        for (const note of list) {
+          if (y > 270) {
             doc.addPage();
-            yOffset = 20;
+            y = 20;
           }
-
-          // — Date heading —
           doc.setFontSize(12).setFont("helvetica", "bold");
-          doc.text(
-            `Date: ${new Date(note.noteDate).toLocaleDateString()}`,
-            15,
-            yOffset
-          );
-          yOffset += 7;
+          doc.text(`Date: ${new Date(note.noteDate).toLocaleDateString()}`, 15, y);
+          y += 7;
           doc.setFontSize(11).setFont("helvetica", "normal");
 
-          // — Build an array of all fields —
-          const noteFields: { label: string; value?: string }[] = [
+          const fields: Array<{ label: string; value?: string }> = [
             { label: "Chief Complaint", value: note.chiefComplaint },
             { label: "History", value: note.history },
             { label: "Medications", value: note.medications },
             { label: "On Observation", value: note.onObservation },
             { label: "On Palpation", value: note.onPalpation },
             { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
-                        { label: "On Examination", value: note.onExamination },
-
+            { label: "On Examination", value: note.onExamination },
             {
-  label: "MMT",
-  value:
-    note.mmt && note.mmt.length > 0
-      ? note.mmt
-          ?.map((joint) => {
-            const jointActions = [];
-
-            // If the joint has right actions
-            if (joint.right?.actions?.length > 0) {
-              jointActions.push(
-                `Right: ${joint.right.actions
-                  .map((action) => `${action.action}: ${action.grade}`)
-                  .join(" | ")}`
-              );
-            }
-
-            // If the joint has left actions
-            if (joint.left?.actions?.length > 0) {
-              jointActions.push(
-                `Left: ${joint.left.actions
-                  .map((action) => `${action.action}: ${action.grade}`)
-                  .join(" | ")}`
-              );
-            }
-
-            // If no actions exist for either side, mark it as "N/A"
-            if (jointActions.length === 0) {
-              jointActions.push("N/A");
-            }
-
-            // Return the formatted string for this joint
-            return `${joint.joint}: ${jointActions.join(" | ")}`;
-          })
-          .join("\n")
-      : undefined,
-}
-,
-            { label: "Treatment", value: note.treatment },
-            {
-              label: "Additional Notes",
+              label: "MMT",
               value:
-                note.additionalNotes && note.additionalNotes.length > 0
-                  ? note.additionalNotes
-                      ?.map((an) => `${an.heading}: ${an.description}`)
+                note.mmt?.length
+                  ? note.mmt
+                      .map((j) => {
+                        const parts: string[] = [];
+                        if (j.right?.actions?.length) {
+                          parts.push(`Right: ${j.right.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}`);
+                        }
+                        if (j.left?.actions?.length) {
+                          parts.push(`Left: ${j.left.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}`);
+                        }
+                        return `${j.joint}: ${parts.length ? parts.join(" | ") : "N/A"}`;
+                      })
                       .join("\n")
                   : undefined,
             },
+            { label: "Treatment", value: note.treatment },
+            {
+              label: "Additional Notes",
+              value: note.additionalNotes?.length
+                ? note.additionalNotes.map((n) => `${n.heading}: ${n.description}`).join("\n")
+                : undefined,
+            },
           ];
 
-          // Loop & render each field
-          for (const field of noteFields) {
-            if (!field.value) continue;
-            const textBlock = doc.splitTextToSize(
-              `${field.label}: ${field.value}`,
-              180
-            );
-            if (yOffset + textBlock.length * 6 > 285) {
+          for (const f of fields) {
+            if (!f.value) continue;
+            const block = doc.splitTextToSize(`${f.label}: ${f.value}`, 180);
+            if (y + block.length * 6 > 285) {
               doc.addPage();
-              yOffset = 20;
+              y = 20;
             }
-            doc.text(textBlock, 15, yOffset);
-            yOffset += textBlock.length * 6 + 2;
+            doc.text(block, 15, y);
+            y += block.length * 6 + 2;
           }
 
-          yOffset += 8;
+          y += 6;
         }
       }
 
-      // —————————————————————————
-      // Footer: page numbers
-      // —————————————————————————
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc
-          .setPage(i)
-          .setFontSize(8)
-          .text(
-            `Page ${i} of ${pageCount}`,
-            doc.internal.pageSize.width - 20,
-            doc.internal.pageSize.height - 10,
-            { align: "right" }
-          );
+      const pages = doc.getNumberOfPages();
+      for (let i = 1; i <= pages; i++) {
+        doc.setPage(i).setFontSize(8).text(`Page ${i} of ${pages}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10, {
+          align: "right",
+        });
       }
 
-      // — Save & finish —
       doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
-      notify("PDF report generated successfully", { type: "success" });
-    } catch (err) {
-      console.error("PDF generation error:", err);
-      notify("Failed to generate PDF report", { type: "error" });
+      notify("PDF generated", { type: "success" });
+    } catch {
+      notify("Failed to generate PDF", { type: "error" });
     } finally {
       setPdfLoading(false);
     }
   };
 
-  const mmtActions = [
-    {
-      joint: "Shoulder",
-      actions: [
-        "Flexion",
-        "Extension",
-        "Abduction",
-        "Adduction",
-        "Internal Rotation",
-        "External Rotation",
-      ],
-    },
-    {
-      joint: "Elbow",
-      actions: ["Flexion", "Extension"],
-    },
-    {
-      joint: "Wrist",
-      actions: ["Flexion", "Extension", "Radial Deviation", "Ulnar Deviation"],
-    },
-    {
-      joint: "Hip",
-      actions: [
-        "Flexion",
-        "Abduction",
-        "Adduction",
-        "Internal Rotation",
-        "External Rotation",
-      ],
-    },
-    {
-      joint: "Knee",
-      actions: ["Flexion", "Extension"],
-    },
-    {
-      joint: "Ankle",
-      actions: ["Plantarflexion", "Dorsiflexion"],
-    },
-    {
-      joint: "Foot",
-      actions: ["Inversion", "Eversion"],
-    },
-  ];
-
-  const grades = [
-    "0",
-    "1",
-    "1+",
-    "2-", // Added from image
-    "2",
-    "2+",
-    "3-", // Added from image
-    "3",
-    "3+",
-    "4-", // Added from image
-    "4",
-    "4+",
-    "5-", // Added from image
-    "5",
-  ];
   if (!record) return <Typography m={3}>Loading patient data...</Typography>;
 
+  // -------- UI --------
   return (
-    <Box p={3}>
-      <Typography variant="h5" gutterBottom>
-        Patient Details & Notes for {record.name}
-      </Typography>
+    <Box p={{ xs: 2, md: 3 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+        <Typography variant="h5" fontWeight={700}>
+          Patient Notes — {record.name}
+        </Typography>
+        <Stack direction="row" spacing={1}>
+          {viewMode === "notes" ? (
+            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={goToEditor}>
+              Add Note
+            </Button>
+          ) : (
+            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={backToNotes}>
+              Back to Notes
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={pdfLoading ? <CircularProgress size={18} /> : <PictureAsPdfIcon />}
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+          >
+            {pdfLoading ? "Generating..." : "Download PDF"}
+          </Button>
+        </Stack>
+      </Stack>
 
-      {/* Download PDF Button */}
-      <Box mb={3}>
-        <Button
-          variant="contained"
-          color="secondary"
-          startIcon={
-            pdfLoading ? (
-              <CircularProgress size={20} color="inherit" />
-            ) : (
-              <PictureAsPdfIcon />
-            )
-          }
-          onClick={handleDownloadPdf}
-          disabled={pdfLoading || !record}
-        >
-          {pdfLoading ? "Generating PDF..." : "Download Full Report (PDF)"}
-        </Button>
-      </Box>
-
-      {/* Patient Personal Information */}
-      <Box mb={4} p={2} border={1} borderRadius={2} borderColor="grey.300">
-        <Typography variant="h6" mb={2}>
+      {/* Patient info card */}
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+        <Typography variant="subtitle1" fontWeight={600} gutterBottom>
           Personal Information
         </Typography>
-        <Stack
-          spacing={1}
-          direction={{ xs: "column", sm: "row" }}
-          flexWrap="wrap"
-          useFlexGap
-        >
-          <Typography>
-            <Typography component="span" fontWeight="bold">
-              Name:
-            </Typography>{" "}
-            {record.name}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Age:
-            </Typography>{" "}
-            {record.age || "N/A"}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Condition:
-            </Typography>{" "}
-            {record.condition || "N/A"}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Sex:
-            </Typography>{" "}
-            {record.gender || "N/A"}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Phone No:
-            </Typography>{" "}
-            {record.phoneNumber || "N/A"}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Email:
-            </Typography>{" "}
-            {record.email || "N/A"}
-          </Typography>
-          <Typography sx={{ ml: { sm: 3 } }}>
-            <Typography component="span" fontWeight="bold">
-              Address:
-            </Typography>{" "}
-            {record.address
-              ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
-              : "N/A"}
-          </Typography>
+        <Divider sx={{ mb: 1 }} />
+        <Stack spacing={0.5} direction="row" flexWrap="wrap" useFlexGap>
+          <Info label="Age" value={record.age} />
+          <Info label="Sex" value={record.gender} />
+          <Info label="Phone" value={record.phoneNumber} />
+          <Info label="Email" value={record.email} />
+          <Info label="Condition" value={record.condition} />
+          <Info
+            label="Address"
+            value={
+              record.address
+                ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
+                : undefined
+            }
+          />
         </Stack>
-      </Box>
-      <Typography variant="h6" gutterBottom>
-        Previous Notes
-      </Typography>
+      </Paper>
 
-      {sortedNotes.length === 0 ? (
-        <Typography mt={2} style={{ whiteSpace: "pre-line" }}>
-          No notes available.
-        </Typography>
-      ) : (
-        <>
-          <Tabs
-            value={tabIndex}
-            onChange={(_, newIndex) => setTabIndex(newIndex)}
-            sx={{
-              mb: 2,
-              "& .MuiTabs-indicator": { backgroundColor: "#16669f" },
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-          >
-            {sortedNotes?.map((note, index) => (
-              <Tab
-                key={index}
-                label={new Date(note.noteDate).toLocaleDateString()}
-                sx={{
-                  fontWeight: "bold",
-                  fontSize: 14,
-                  "&.Mui-selected": {
-                    color: "#16669f",
-                    backgroundColor: "#f0f0f0",
-                  },
-                  "&:hover": { backgroundColor: "#e8e8e8" },
-                }}
-              />
-            ))}
-          </Tabs>
+      {/* View Mode Switch */}
+      {viewMode === "notes" ? (
+        // ----- PREVIOUS NOTES -----
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
+            <Typography variant="h6" fontWeight={700}>
+              Previous Notes
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {sortedNotes.length} note{sortedNotes.length === 1 ? "" : "s"}
+            </Typography>
+          </Stack>
+          {!sortedNotes.length ? (
+            <Typography color="text.secondary" sx={{ mt: 1 }}>
+              No notes yet. Click “Add Note” to create one.
+            </Typography>
+          ) : (
+            <>
+              <Tabs
+                value={tabIndex}
+                onChange={(_, v: number) => setTabIndex(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                allowScrollButtonsMobile
+                sx={{ mb: 2, "& .MuiTabs-indicator": { backgroundColor: "primary.main" } }}
+              >
+                {sortedNotes.map((n, i) => (
+                  <Tab
+                    key={`tab-${i}`}
+                    label={new Date(n.noteDate).toLocaleDateString()}
+                    sx={{
+                      fontWeight: 600,
+                      textTransform: "none",
+                    }}
+                  />
+                ))}
+              </Tabs>
 
-          <Box border={1} borderRadius={2} p={2} borderColor="grey.300">
-            {sortedNotes[tabIndex] && (
-              <Stack direction="column" spacing={2} alignItems="flex-start">
-                <Typography
-                  variant="h6"
-                  fontWeight="bold"
-                  color="primary"
-                  style={{ whiteSpace: "pre-line" }}
-                >
-                  Note for{" "}
-                  {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
-                </Typography>
-                <Box>
-                  <IconButton
-                    aria-label="edit note"
-                    onClick={() => handleEditNote(tabIndex)}
-                    color="primary"
-                    size="small"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    aria-label="delete note"
-                    onClick={() => handleDeleteClick(tabIndex)}
-                    color="error"
-                    size="small"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-                {/* Chief Complaint */}
-                {sortedNotes[tabIndex].chiefComplaint && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      <strong>Chief Complaint:</strong>{" "}
-                      {sortedNotes[tabIndex].chiefComplaint}
+              {sortedNotes[tabIndex] && (
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
                     </Typography>
+                    <Box>
+                      <Tooltip title="Edit this note">
+                        <IconButton color="primary" size="small" onClick={() => handleEditNote(tabIndex)}>
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete this note">
+                        <IconButton color="error" size="small" onClick={() => handleDeleteClick(tabIndex)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Stack>
+                  <Divider sx={{ mb: 2 }} />
+
+                  <NoteField label="Chief Complaint" value={sortedNotes[tabIndex].chiefComplaint} />
+                  <NoteField label="History" value={sortedNotes[tabIndex].history} />
+                  <NoteField label="Medications" value={sortedNotes[tabIndex].medications} />
+                  <NoteField label="On Observation" value={sortedNotes[tabIndex].onObservation} />
+                  <NoteField label="On Palpation" value={sortedNotes[tabIndex].onPalpation} />
+                  <NoteField label="Pain Assessment (NPRS)" value={sortedNotes[tabIndex].painAssessmentNPRS} />
+                  <NoteField label="On Examination" value={sortedNotes[tabIndex].onExamination} />
+
+                  {/* MMT */}
+                  <Box mt={1}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      MMT
+                    </Typography>
+                    {sortedNotes[tabIndex].mmt?.length ? (
+                      <Box>
+                        {sortedNotes[tabIndex].mmt.map((j) => (
+                          <Box key={j.joint} sx={{ pl: 1, py: 0.5 }}>
+                            <Typography fontWeight={700}>{j.joint}</Typography>
+                            {!!j.right?.actions?.length && (
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Right:</strong>{" "}
+                                {j.right.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}
+                              </Typography>
+                            )}
+                            {!!j.left?.actions?.length && (
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Left:</strong>{" "}
+                                {j.left.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}
+                              </Typography>
+                            )}
+                            {!j.right?.actions?.length && !j.left?.actions?.length && (
+                              <Typography variant="body2" color="text.secondary">
+                                N/A
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        N/A
+                      </Typography>
+                    )}
                   </Box>
-                )}
 
-                {/* On Examination */}
-        
-                {sortedNotes[tabIndex].history && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>History:</strong> {sortedNotes[tabIndex].history}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].medications && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Medications:</strong>{" "}
-                    {sortedNotes[tabIndex].medications}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].onObservation && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>On Observation:</strong>{" "}
-                    {sortedNotes[tabIndex].onObservation}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].onPalpation && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>On Palpation:</strong>{" "}
-                    {sortedNotes[tabIndex].onPalpation}
-                  </Typography>
-                )}
-                {sortedNotes[tabIndex].painAssessmentNPRS && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Pain Assessment (NPRS):</strong>{" "}
-                    {sortedNotes[tabIndex].painAssessmentNPRS}
-                  </Typography>
-                )}
-                        {sortedNotes[tabIndex]?.onExamination && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 1 }}>
-                    <Typography variant="body2" color="textSecondary">
-                      <strong>On Examination:</strong>{" "}
-                      {sortedNotes[tabIndex].onExamination}
-                    </Typography>
-                  </Box>
-                )}
-                {sortedNotes[tabIndex].mmt && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>MMT:</strong>{" "}
-                    {sortedNotes[tabIndex]?.mmt && sortedNotes[tabIndex]?.mmt.length > 0 ? (
-  sortedNotes[tabIndex].mmt.map((joint) => (
-    <Box key={joint.joint} mb={2}>
-      <Typography variant="h6" fontWeight="bold">
-        {joint.joint}
-      </Typography>
-      <Typography variant="body2" color="textSecondary">
-        {joint.right?.actions?.length > 0 && (
-          <>
-            <strong>Right:</strong>{" "}
-            {joint.right.actions
-              .map((action) => `${action.action}: ${action.grade}`)
-              .join(" | ")}
-          </>
-        )}
-        {joint.left?.actions?.length > 0 && (
-          <>
-            <br />
-            <strong>Left:</strong>{" "}
-            {joint.left.actions
-              .map((action) => `${action.action}: ${action.grade}`)
-              .join(" | ")}
-          </>
-        )}
-        {!joint.right?.actions?.length && !joint.left?.actions?.length && (
-          <em>No actions available</em>
-        )}
-      </Typography>
-    </Box>
-  ))
-) : (
-  <Typography variant="body2" color="textSecondary">
-    N/A
-  </Typography>
-)}
+                  <NoteField label="Treatment" value={sortedNotes[tabIndex].treatment} />
 
-                  </Typography>
-                )}
-
-                {sortedNotes[tabIndex].treatment && (
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    style={{ whiteSpace: "pre-line" }}
-                  >
-                    <strong>Treatment:</strong>{" "}
-                    {sortedNotes[tabIndex].treatment}
-                  </Typography>
-                )}
-                {(sortedNotes[tabIndex]?.additionalNotes ?? []).length > 0 && (
-                  <Box sx={{ whiteSpace: "pre-line", mt: 2 }}>
-                    <Typography
-                      variant="body2"
-                      color="textSecondary"
-                      gutterBottom
-                    >
-                      <strong>Additional Notes:</strong>
-                    </Typography>
-                    <List dense disablePadding>
-                      {sortedNotes[tabIndex]!.additionalNotes!.map(
-                        (note, idx) => (
-                          <ListItem
-                            key={`display-add-note-${idx}`}
-                            sx={{ py: 0.5 }}
-                          >
+                  {/* Additional Notes */}
+                  {(sortedNotes[tabIndex].additionalNotes ?? []).length > 0 && (
+                    <Box mt={1}>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Additional Notes
+                      </Typography>
+                      <List dense disablePadding>
+                        {sortedNotes[tabIndex].additionalNotes!.map((n, i) => (
+                          <ListItem key={`an-${i}`} sx={{ py: 0.5 }}>
                             <ListItemIcon sx={{ minWidth: 30 }}>
                               <TextsmsIcon fontSize="small" color="action" />
                             </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Typography fontWeight="bold">
-                                  {note.heading}
-                                </Typography>
-                              }
-                              secondary={note.description}
-                            />
+                            <ListItemText primary={<Typography fontWeight={700}>{n.heading}</Typography>} secondary={n.description} />
                           </ListItem>
-                        )
-                      )}
-                    </List>
-                  </Box>
-                )}
+                        ))}
+                      </List>
+                    </Box>
+                  )}
 
-                {sortedNotes[tabIndex].images &&
-                  sortedNotes[tabIndex].images.length > 0 && (
-                    <Box>
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        style={{ whiteSpace: "pre-line" }}
-                      >
-                        <strong>Attached Images:</strong>
+                  {/* Images */}
+                  {!!sortedNotes[tabIndex].images?.length && (
+                    <Box mt={1}>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Attached Images
                       </Typography>
                       <Stack direction="row" spacing={2} flexWrap="wrap">
-                        {sortedNotes[tabIndex].images?.map((img, idx) => (
+                        {sortedNotes[tabIndex].images.map((img, idx) => (
                           <Box
-                            key={idx}
+                            key={`img-${idx}`}
                             sx={{
+                              width: 110,
+                              height: 110,
+                              borderRadius: 1,
+                              overflow: "hidden",
+                              border: "1px solid",
+                              borderColor: "divider",
                               position: "relative",
-                              width: 100,
-                              height: 100,
+                              cursor: "pointer",
                             }}
+                            onClick={() => handleImageClick(img, idx)}
                           >
-                            <img
-                              src={img}
-                              alt={`Note-${idx}`}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                borderRadius: "8px",
-                              }}
-                            />
+                            <img src={img} alt={`Note-${idx}`} width={110} height={110} style={{ objectFit: "cover" }} loading="lazy" />
                             <IconButton
                               size="small"
-                              sx={{
-                                position: "absolute",
-                                top: 4,
-                                right: 4,
-                                backgroundColor: "rgba(255, 0, 0, 0.7)",
-                                color: "white",
-                                "&:hover": {
-                                  backgroundColor: "rgba(255, 0, 0, 0.9)",
-                                },
+                              sx={{ position: "absolute", bottom: 4, right: 4, bgcolor: "rgba(0,0,0,0.6)", color: "#fff" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadImage(img, sortedNotes[tabIndex].noteDate, idx);
                               }}
-                              onClick={() =>
-                                handleDownloadImage(
-                                  img,
-                                  sortedNotes[tabIndex].noteDate,
-                                  idx
-                                )
-                              }
-                              aria-label="download image"
                             >
                               <FileDownloadIcon fontSize="small" />
                             </IconButton>
@@ -1162,509 +801,313 @@ const PatientNotes = () => {
                       </Stack>
                     </Box>
                   )}
-              </Stack>
-            )}
-          </Box>
-        </>
-      )}
-      <Typography variant="h6" gutterBottom ref={formRef}>
-        {editingNoteIndex !== null ? "Edit Note" : "Add New Note"}
-      </Typography>
-
-      <Stack
-        spacing={3}
-        mb={4}
-        p={3}
-        border={1}
-        borderRadius={2}
-        borderColor="grey.300"
-        boxShadow={2} // Adding shadow for depth
-        sx={{ backgroundColor: "background.paper" }} // Light background for the form container
-      >
-        <TextField
-          label="Note Date"
-          type="date"
-          value={noteDate}
-          onChange={(e) => setNoteDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          fullWidth
-          sx={{ borderRadius: 1 }} // Rounded corners
-        />
-        <TextareaAutosize
-          minRows={2}
-          placeholder="Chief Complaint"
-          value={chiefComplaint}
-          onChange={(e) => setChiefComplaint(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        {/* On Examination */}
-
-        <TextareaAutosize
-          minRows={3}
-          placeholder="History"
-          value={history}
-          onChange={(e) => setHistory(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        <TextareaAutosize
-          minRows={2}
-          placeholder="Medications"
-          value={medications}
-          onChange={(e) => setMedications(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        <TextareaAutosize
-          minRows={3}
-          placeholder="On Observation"
-          value={onObservation}
-          onChange={(e) => setOnObservation(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        <TextareaAutosize
-          minRows={3}
-          placeholder="On Palpation"
-          value={onPalpation}
-          onChange={(e) => setOnPalpation(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        <TextareaAutosize
-          minRows={1}
-          placeholder="Pain Assessment (NPRS)"
-          value={painAssessmentNPRS}
-          onChange={(e) => setPainAssessmentNPRS(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-        <TextareaAutosize
-          minRows={3}
-          placeholder="On Examination"
-          value={onExamination}
-          onChange={(e) => setOnExamination(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-        <Box mb={3}>
-          <Typography variant="h6" fontWeight="bold">
-            MMT (Manual Muscle Testing)
-          </Typography>
-          {mmtActions?.map((jointGroup) => (
-            <Box key={jointGroup.joint} my={3}>
-              <Typography variant="h6" fontWeight="bold">
-                {jointGroup.joint}
-              </Typography>
-              <Stack direction="row" flexWrap="wrap" spacing={3}>
-                {jointGroup.actions?.map((action) => (
-                  <Box
-                    key={action}
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    sx={{
-                      width: "220px",
-                      marginBottom: "10px",
-                      padding: "10px",
-                      border: "1px solid #ddd",
-                      borderRadius: "8px",
-                      backgroundColor: "#f5f5f5",
-                    }}
-                  >
-                    <Typography variant="body1" sx={{ flex: 1 }}>
-                      {action}
-                    </Typography>
-                   <FormControl sx={{ width: "80px" }}>
-  <InputLabel>Left Grade</InputLabel>
-  <Select
-    value={gradesSelection[`${jointGroup.joint}-${action}-left`] || ""}
-    onChange={(e) =>
-      handleGradeChange(jointGroup.joint, action, "left", e.target.value)
-    }
-    label="Left Grade"
-    sx={{ backgroundColor: "#fff", borderRadius: "5px" }}
-  >
-    {grades.map((grade) => (
-      <MenuItem key={grade} value={grade}>
-        {grade}
-      </MenuItem>
-    ))}
-  </Select>
-</FormControl>
-
-<FormControl sx={{ width: "80px" }}>
-  <InputLabel>Right Grade</InputLabel>
-  <Select
-    value={gradesSelection[`${jointGroup.joint}-${action}-right`] || ""}
-    onChange={(e) =>
-      handleGradeChange(jointGroup.joint, action, "right", e.target.value)
-    }
-    label="Right Grade"
-    sx={{ backgroundColor: "#fff", borderRadius: "5px" }}
-  >
-    {grades.map((grade) => (
-      <MenuItem key={grade} value={grade}>
-        {grade}
-      </MenuItem>
-    ))}
-  </Select>
-</FormControl>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          ))}
-        </Box>
-
-        {/* Additional Notes Section */}
-        <Box>
-          <Typography variant="h6" fontWeight="bold">
-            Additional Notes
-          </Typography>
-
-          {additionalNotes.length > 0 && (
-            <List dense disablePadding>
-              {additionalNotes?.map((note, idx) => (
-                <ListItem
-                  key={`add-note-${idx}`}
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      aria-label="delete"
-                      onClick={() => handleDeleteAdditionalNote(idx)}
-                      size="small"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  }
-                  sx={{ py: 0.5 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 30 }}>
-                    <TextsmsIcon fontSize="small" color="action" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Typography fontWeight="bold">{note.heading}</Typography>
-                    }
-                    secondary={note.description}
-                  />
-                </ListItem>
-              ))}
-            </List>
+                </Paper>
+              )}
+            </>
           )}
+        </Paper>
+      ) : (
+        // ----- EDITOR -----
+        <Paper ref={formRef} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+          <Typography variant="h6" fontWeight={700} gutterBottom>
+            {editingNoteIndex !== null ? "Edit Note" : "Add New Note"}
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
 
-          <Stack direction="column" spacing={1} mt={2}>
-            <TextareaAutosize
-              minRows={2}
-              placeholder="Heading"
-              value={newNoteHeading}
-              onChange={(e) => setNewNoteHeading(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                fontSize: "16px",
-              }}
+          <Stack spacing={2}>
+            <TextField
+              label="Note Date"
+              type="date"
+              value={noteDate}
+              onChange={(e) => setNoteDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
             />
 
-            <TextareaAutosize
-              minRows={3}
-              placeholder="Description"
-              value={newNoteDescription}
-              onChange={(e) => setNewNoteDescription(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                fontSize: "16px",
-              }}
-            />
+            <Textarea label="Chief Complaint" value={chiefComplaint} onChange={setChiefComplaint} rows={2} />
+            <Textarea label="History" value={history} onChange={setHistory} rows={3} />
+            <Textarea label="Medications" value={medications} onChange={setMedications} rows={2} />
+            <Textarea label="On Observation" value={onObservation} onChange={setOnObservation} rows={3} />
+            <Textarea label="On Palpation" value={onPalpation} onChange={setOnPalpation} rows={3} />
+            <Textarea label="Pain Assessment (NPRS)" value={painAssessmentNPRS} onChange={setPainAssessmentNPRS} rows={1} />
+            <Textarea label="On Examination" value={onExamination} onChange={setOnExamination} rows={3} />
 
-            <Button
-              variant="contained"
-              onClick={handleAddAdditionalNote}
-              disabled={!newNoteHeading.trim() || !newNoteDescription.trim()}
-              startIcon={<AddCircleOutlineIcon />}
-              sx={{ alignSelf: "flex-end", px: 3 }}
-            >
-              Add Note
-            </Button>
-          </Stack>
-        </Box>
-
-        <TextareaAutosize
-          minRows={4}
-          placeholder="Treatment"
-          value={treatment}
-          onChange={(e) => setTreatment(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "16px",
-          }}
-        />
-
-        {/* Existing Images */}
-        {existingImagesToDisplay.length > 0 && (
-          <Box mt={2}>
-            <Typography variant="h6" fontWeight="bold" mb={1}>
-              Existing Images for this Note:
-            </Typography>
-            <Stack direction="row" spacing={2} flexWrap="wrap">
-              {existingImagesToDisplay?.map((img, idx) => (
-                <Box
-                  key={`existing-${idx}`}
-                  sx={{
-                    position: "relative",
-                    border: "1px solid #ddd",
-                    borderRadius: 1,
-                    p: 0.5,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => handleImageClick(img, idx)}
-                >
-                  <img
-                    src={img}
-                    alt={`Existing Note-${idx}`}
-                    width={100}
-                    height={100}
-                    style={{ borderRadius: 4, objectFit: "cover" }}
-                  />
-                  <IconButton
-                    size="small"
-                    sx={{
-                      position: "absolute",
-                      top: 4,
-                      right: 4,
-                      backgroundColor: "rgba(255,0,0,0.7)",
-                      color: "white",
-                      "&:hover": { backgroundColor: "rgba(255,0,0,0.9)" },
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const confirmDelete = window.confirm(
-                        "Are you sure you want to remove this image from the note?"
-                      );
-                      if (confirmDelete) {
-                        setExistingImagesToDisplay((prev) =>
-                          prev.filter((_, i) => i !== idx)
-                        );
-                        notify(
-                          "Image removed from note edit. Save note to confirm.",
-                          { type: "info" }
-                        );
-                      }
-                    }}
-                    aria-label="remove image"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    sx={{
-                      position: "absolute",
-                      bottom: 4,
-                      right: 4,
-                      backgroundColor: "rgba(0,0,0,0.6)",
-                      color: "white",
-                      "&:hover": { backgroundColor: "rgba(0,0,0,0.8)" },
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadImage(img, noteDate, idx);
-                    }}
-                    aria-label="download image"
-                  >
-                    <FileDownloadIcon fontSize="small" />
-                  </IconButton>
+            {/* MMT */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                MMT (Manual Muscle Testing)
+              </Typography>
+              {mmtActions.map((jg) => (
+                <Box key={jg.joint} sx={{ mb: 2 }}>
+                  <Typography fontWeight={700} sx={{ mb: 1 }}>
+                    {jg.joint}
+                  </Typography>
+                  <Stack direction="row" flexWrap="wrap" gap={1.5}>
+                    {jg.actions.map((action) => (
+                      <Box
+                        key={action}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          p: 1,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          borderRadius: 1.5,
+                          minWidth: 240,
+                          bgcolor: "background.default",
+                        }}
+                      >
+                        <Typography sx={{ flex: 1 }}>{action}</Typography>
+                        <FormControl size="small" sx={{ width: 100 }}>
+                          <InputLabel>Left</InputLabel>
+                          <Select
+                            label="Left"
+                            value={gradesSelection[`${jg.joint}-${action}-left`] ?? ""}
+                            onChange={(e) => handleGradeChange(jg.joint, action, "left", String(e.target.value))}
+                          >
+                            {grades.map((g) => (
+                              <MenuItem key={g} value={g}>
+                                {g}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ width: 100 }}>
+                          <InputLabel>Right</InputLabel>
+                          <Select
+                            label="Right"
+                            value={gradesSelection[`${jg.joint}-${action}-right`] ?? ""}
+                            onChange={(e) => handleGradeChange(jg.joint, action, "right", String(e.target.value))}
+                          >
+                            {grades.map((g) => (
+                              <MenuItem key={g} value={g}>
+                                {g}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Box>
+                    ))}
+                  </Stack>
                 </Box>
               ))}
+            </Box>
+
+            {/* Additional notes */}
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                Additional Notes
+              </Typography>
+              {(additionalNotes ?? []).length > 0 && (
+                <List dense disablePadding sx={{ mb: 1 }}>
+                  {additionalNotes.map((n, i) => (
+                    <ListItem
+                      key={`ad-${i}`}
+                      secondaryAction={
+                        <IconButton edge="end" onClick={() => handleDeleteAdditionalNote(i)} size="small">
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      }
+                      sx={{ py: 0.5 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 30 }}>
+                        <TextsmsIcon fontSize="small" color="action" />
+                      </ListItemIcon>
+                      <ListItemText primary={<Typography fontWeight={700}>{n.heading}</Typography>} secondary={n.description} />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <Textarea placeholder="Heading" value={newNoteHeading} onChange={setNewNoteHeading} rows={2} />
+                <Textarea placeholder="Description" value={newNoteDescription} onChange={setNewNoteDescription} rows={3} />
+                <Button
+                  variant="contained"
+                  startIcon={<AddCircleOutlineIcon />}
+                  onClick={handleAddAdditionalNote}
+                  disabled={!newNoteHeading.trim() || !newNoteDescription.trim()}
+                >
+                  Add
+                </Button>
+              </Stack>
+            </Box>
+
+            <Textarea label="Treatment" value={treatment} onChange={setTreatment} rows={4} />
+
+            {/* existing images */}
+            {!!existingImagesToDisplay.length && (
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                  Existing Images
+                </Typography>
+                <Stack direction="row" spacing={2} flexWrap="wrap">
+                  {existingImagesToDisplay.map((img, idx) => (
+                    <Box
+                      key={`ex-${idx}`}
+                      sx={{
+                        position: "relative",
+                        width: 110,
+                        height: 110,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        borderRadius: 1,
+                        p: 0.5,
+                        cursor: "pointer",
+                      }}
+                      onClick={() => handleImageClick(img, idx)}
+                    >
+                      <img src={img} alt={`Existing-${idx}`} width={110} height={110} style={{ objectFit: "cover" }} loading="lazy" />
+                      <IconButton
+                        size="small"
+                        sx={{ position: "absolute", top: 4, right: 4, bgcolor: "error.main", color: "#fff" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Remove this image from the note?")) {
+                            setExistingImagesToDisplay((prev) => prev.filter((_, i) => i !== idx));
+                            notify("Image removed (save to confirm).", { type: "info" });
+                          }
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        sx={{ position: "absolute", bottom: 4, right: 4, bgcolor: "rgba(0,0,0,0.6)", color: "#fff" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadImage(img, noteDate, idx);
+                        }}
+                      >
+                        <FileDownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {/* new images */}
+            <Box>
+              <Input
+                type="file"
+                inputProps={{ multiple: true, accept: "image/*" }}
+                onChange={(e) => setImages(Array.from((e.target as HTMLInputElement).files ?? []))}
+                fullWidth
+              />
+              {!!images.length && (
+                <Typography variant="caption" color="text.secondary">
+                  {images.length} new image(s) selected
+                </Typography>
+              )}
+            </Box>
+
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button variant="contained" onClick={handleNoteSubmit} disabled={loading} fullWidth>
+                {loading ? (editingNoteIndex !== null ? "Updating..." : "Saving...") : editingNoteIndex !== null ? "Update Note" : "Save Note"}
+              </Button>
+              <Button variant="outlined" onClick={backToNotes} disabled={loading} fullWidth>
+                Cancel
+              </Button>
             </Stack>
-            <Typography variant="caption" color="text.secondary" mt={1}>
-              Click an image to view it larger. Use the red &apos;X&apos; to
-              remove it from this note.
-            </Typography>
-          </Box>
-        )}
+          </Stack>
+        </Paper>
+      )}
 
-        {/* Image Upload */}
-        <Input
-          type="file"
-          inputProps={{ multiple: true, accept: "image/*" }}
-          onChange={(e) =>
-            setImages(Array.from((e.target as HTMLInputElement).files || []))
-          }
-          fullWidth
-          sx={{ borderRadius: 1 }}
-        />
-        {images.length > 0 && (
-          <Typography variant="caption" color="text.secondary">
-            {images.length} new image(s) selected
-          </Typography>
-        )}
-
-        {/* Buttons */}
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="contained"
-            onClick={handleNoteSubmit}
-            disabled={loading}
-            fullWidth
-            sx={{ borderRadius: 1 }}
-          >
-            {loading
-              ? editingNoteIndex !== null
-                ? "Updating..."
-                : "Saving..."
-              : editingNoteIndex !== null
-              ? "Update Note"
-              : "Save Note"}
-          </Button>
-          {editingNoteIndex !== null && (
-            <Button
-              variant="outlined"
-              onClick={resetFormFields}
-              disabled={loading}
-              fullWidth
-              sx={{ borderRadius: 1 }}
-            >
-              Cancel Edit
-            </Button>
-          )}
-        </Stack>
-      </Stack>
-
-      {/* Previous Notes Display */}
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={openDeleteDialog}
-        onClose={handleDeleteDialogClose}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-      >
-        <DialogTitle id="alert-dialog-title">{"Confirm Deletion"}</DialogTitle>
+      {/* Delete dialog */}
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+        <DialogTitle>Confirm deletion</DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description">
-            Are you sure you want to delete this note? This action cannot be
-            undone.
-          </DialogContentText>
+          <DialogContentText>Delete this note? This cannot be undone.</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteDialogClose} autoFocus>
-            Cancel
-          </Button>
+          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
           <Button onClick={handleDeleteNoteConfirm} color="error">
             Delete
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Image Viewer Dialog (with delete option for editing images) */}
-      <Dialog
-        open={openImageDialog}
-        onClose={handleImageDialogClose}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: "flex", justifyContent: "flex-end", p: 1 }}>
-          <IconButton onClick={handleImageDialogClose} aria-label="close">
+      {/* Image dialog */}
+      <Dialog open={openImageDialog} onClose={handleImageDialogClose} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography>Image</Typography>
+          <IconButton onClick={handleImageDialogClose}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent
-          sx={{
-            p: 0,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            overflow: "hidden",
-          }}
-        >
-          {selectedImage && (
-            <img
-              src={selectedImage}
-              alt="Full-size Note Image"
-              style={{ maxWidth: "100%", height: "auto" }}
-            />
-          )}
+        <DialogContent sx={{ display: "flex", justifyContent: "center" }}>
+          {selectedImage && <img src={selectedImage} alt="Note" style={{ maxWidth: "100%", height: "auto" }} />}
         </DialogContent>
         <DialogActions>
           {selectedImage && (
-            <Button
-              onClick={() =>
-                handleDownloadImage(
-                  selectedImage,
-                  noteDate,
-                  selectedImageIndex ?? 0
-                )
-              }
-              startIcon={<FileDownloadIcon />}
-            >
+            <Button onClick={() => handleDownloadImage(selectedImage, noteDate, selectedImageIndex ?? 0)} startIcon={<FileDownloadIcon />}>
               Download
             </Button>
           )}
-          {selectedImageIndex !== null &&
-            editingNoteIndex !== null && ( // Only show delete if in edit mode and image is from existingImagesToDisplay
-              <Button
-                onClick={handleDeleteExistingImage}
-                color="error"
-                startIcon={<DeleteIcon />}
-              >
-                Remove from Note
-              </Button>
-            )}
+          {selectedImageIndex !== null && viewMode === "editor" && (
+            <Button onClick={handleDeleteExistingImage} color="error" startIcon={<DeleteIcon />}>
+              Remove from Note
+            </Button>
+          )}
           <Button onClick={handleImageDialogClose}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 };
+
+// -------- Small helpers (typed, no any) --------
+const Info: React.FC<{ label: string; value?: string | number }> = ({ label, value }) => (
+  <Typography sx={{ mr: 3 }} color={value ? "text.primary" : "text.secondary"}>
+    <Typography component="span" fontWeight={700}>
+      {label}:
+    </Typography>{" "}
+    {value ?? "N/A"}
+  </Typography>
+);
+
+const NoteField: React.FC<{ label: string; value?: string }> = ({ label, value }) =>
+  value ? (
+    <Box sx={{ mb: 1 }}>
+      <Typography variant="subtitle2" fontWeight={700}>
+        {label}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
+        {value}
+      </Typography>
+    </Box>
+  ) : null;
+
+const Textarea: React.FC<{ label?: string; value: string; onChange: (v: string) => void; rows: number; placeholder?: string }> = ({
+  label,
+  value,
+  onChange,
+  rows,
+  placeholder,
+}) => (
+  <Box>
+    {label && (
+      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+        {label}
+      </Typography>
+    )}
+    <TextareaAutosize
+      minRows={rows}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder ?? label ?? ""}
+      style={{
+        width: "100%",
+        padding: "10px",
+        border: "1px solid #ddd",
+        borderRadius: 8,
+        fontSize: 16,
+        background: "#fff",
+      }}
+    />
+  </Box>
+);
 
 export default PatientNotes;

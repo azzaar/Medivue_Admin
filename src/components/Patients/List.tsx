@@ -30,6 +30,7 @@ import {
   ReferenceArrayField,
   SingleFieldList,
   useRecordContext,
+  Pagination,
 } from "react-admin";
 import CalendarView from "./CalendarView";
 import NotesButton from "./PatientNoteButton";
@@ -211,6 +212,9 @@ const DoctorCell: React.FC = () => {
       filters={patientFilters}
       filterDefaultValues={{ status: "active" }}
       sort={{ field: "patientId", order: "ASC" }}
+       perPage={50}  
+         pagination={<Pagination rowsPerPageOptions={[25, 50, 100]} />} // optional
+
     >
       <Datagrid rowClick={false} bulkActionButtons={false}>
         <TextField source="patientId" label="Patient ID" />
