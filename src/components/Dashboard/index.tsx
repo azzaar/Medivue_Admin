@@ -94,7 +94,15 @@ const { choices: patientChoices } = useChoices("patients");
   const [rowsByPaymentType, setRowsByPaymentType] = useState<PaymentTypeRow[]>([]);
   const [rowsByDoctor, setRowsByDoctor] = useState<DoctorRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+ const doctorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const d of doctorChoices) map[String(d.id)] = d.name;
+    return map;
+  }, [doctorChoices]);
 
+  // simple helper (not a hook)
+  const doctorLabel = (value?: string) =>
+    value ? (doctorMap[String(value)] ?? value) : "—";
   // UI filter (live)
   const [filter, setFilter] = useState<Filter>({
     month: defaultMonth,
@@ -220,7 +228,7 @@ const { choices: patientChoices } = useChoices("patients");
     } else {
       csv += toCSV(["Doctor", "Count", "Paid", "Due"]) + "\n";
       rowsByDoctor.forEach((r) =>
-        (csv += toCSV([r.visitedDoctor || "—", String(r.count), r.totalPaid > 0 ? fmt(r.totalPaid) : "0", r.totalDue > 0 ? fmt(r.totalDue) : "0"]) + "\n")
+        (csv += toCSV([ doctorLabel(r.visitedDoctor) || "—", String(r.count), r.totalPaid > 0 ? fmt(r.totalPaid) : "0", r.totalDue > 0 ? fmt(r.totalDue) : "0"]) + "\n")
       );
     }
 
@@ -559,18 +567,18 @@ const { choices: patientChoices } = useChoices("patients");
                   {rowsByDoctor.length ? (
                     rowsByDoctor.map((r) => (
                       <TableRow key={r.id} hover>
-                        <TableCell>{r.visitedDoctor || "—"}</TableCell>
-                        <TableCell align="right">{fmt(r.count)}</TableCell>
-                        <TableCell align="right" sx={{ color: "success.main" }}>
-                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-                        >
-                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-                        </TableCell>
-                      </TableRow>
+      <TableCell>{doctorLabel(r.visitedDoctor)}</TableCell>
+      <TableCell align="right">{fmt(r.count)}</TableCell>
+      <TableCell align="right" sx={{ color: "success.main" }}>
+        {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
+      </TableCell>
+      <TableCell
+        align="right"
+        sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
+      >
+        {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
+      </TableCell>
+    </TableRow>
                     ))
                   ) : (
                     <TableRow>
