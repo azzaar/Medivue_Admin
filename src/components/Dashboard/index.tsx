@@ -189,15 +189,6 @@ const { choices: patientChoices } = useChoices("patients");
     return { totalFee, totalPaid, totalDue, totalVisits };
   }, [rowsPatients]);
 // Put these at the top of Dashboard.tsx (outside the component)
-const toUTCDateOnly = (isoLike: string): string => {
-  // Works for: "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss.sssZ", etc.
-  if (!isoLike) return "";
-  // If it's already a date-only string, keep it (no TZ math).
-  if (/^\d{4}-\d{2}-\d{2}$/.test(isoLike)) return isoLike;
-  // Else, force UTC and cut the date part.
-  const d = new Date(isoLike);
-  return Number.isNaN(d.getTime()) ? isoLike : d.toISOString().slice(0, 10);
-};
 
 
 
