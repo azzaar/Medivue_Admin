@@ -24,7 +24,6 @@ import {
   BookOnline,
 } from "@mui/icons-material";
 
-
 import theme from "@/utils/theme";
 import CustomLoginPage from "./CustomLoginPage";
 import DoctorProfilePage from "./Doctors/DoctorProfile";
@@ -38,7 +37,6 @@ import {
 import Dashboard from "./Dashboard";
 import ExpenseTracker from "./Expense/List";
 
-
 const AdminApp = () => {
   return (
     <Admin
@@ -51,24 +49,18 @@ const AdminApp = () => {
     >
       {(permissions) => {
         const isAdmin = permissions === "admin";
+        const superAdmin = permissions === "superAdmin";
 
         return (
           <>
             {/* ✅ Admin-only resources and dashboard */}
             {isAdmin && (
               <>
-                {/* Show Dashboard for Admins only */}
                 <Resource
                   name="dashboard"
                   options={{ label: "Payment History" }}
                   list={Dashboard} // trick: treat Dashboard as a list page
                 />
-{/* <Resource
-  name="doctors-leave"
-  list={DoctorLeaveList}
-  create={DoctorLeaveCreate}
-  icon={TimeToLeave}
-/> */}
                 <Resource
                   name="doctors"
                   list={DoctorList}
@@ -78,24 +70,46 @@ const AdminApp = () => {
                   icon={GroupIcon}
                 />
                 <Resource
-  name="expenses"
-  list={ExpenseTracker}
-  
-  // create={ExpenseCreate}
-  // edit={ExpenseEdit}
-  // show={ExpenseShow}
-/>
-                <Resource
                   name="appointments"
                   list={AppoinmentList}
-                                    options={{ label: "Website Bookings" }}
-
+                  options={{ label: "Website Bookings" }}
                   icon={BookOnline}
                 />
                 <Resource
                   name="jobs"
-                                    options={{ label: "Hiring Posts" }}
-
+                  options={{ label: "Hiring Posts" }}
+                  list={JobCategoryList}
+                  create={JobCategoryCreate}
+                  edit={JobCategoryEdit}
+                  show={JobCategoryShow}
+                />
+              </>
+            )}
+            {superAdmin && (
+              <>
+                <Resource name="expenses" list={ExpenseTracker} />
+                <Resource
+                  name="dashboard"
+                  options={{ label: "Payment History" }}
+                  list={Dashboard} // trick: treat Dashboard as a list page
+                />
+                <Resource
+                  name="doctors"
+                  list={DoctorList}
+                  create={DoctorCreate}
+                  edit={DoctorEdit}
+                  show={DoctorShow}
+                  icon={GroupIcon}
+                />
+                <Resource
+                  name="appointments"
+                  list={AppoinmentList}
+                  options={{ label: "Website Bookings" }}
+                  icon={BookOnline}
+                />
+                <Resource
+                  name="jobs"
+                  options={{ label: "Hiring Posts" }}
                   list={JobCategoryList}
                   create={JobCategoryCreate}
                   edit={JobCategoryEdit}
