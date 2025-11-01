@@ -21,8 +21,9 @@ interface PatientSummary {
 type StatusFilter = "all" | "active" | "closed";
 
 interface Filter {
-  month: string;
-  year: string;
+  day: string;               // "All" | "1"..."31"
+  month: string;             // "All" | "1"..."12"
+  year: string;              // "2025" etc.
   q: string;
   status: StatusFilter;
   paymentType: "" | "cash" | "upi" | "card" | "bank";
@@ -68,6 +69,9 @@ const months = [
   "July","August","September","October","November","December",
 ];
 
+// Build day choices: "All", "1".."31"
+const dayChoices: string[] = ["All", ...Array.from({ length: 31 }, (_, i) => String(i + 1))];
+
 type TabKey = "overall" | "daily" | "byPaymentType" | "byDoctor";
 
 const useDebounced = (value: string, delay = 350): string => {
@@ -85,6 +89,7 @@ const Dashboard: React.FC = () => {
 
   const now = new Date();
   const currentMonth = String(now.getMonth() + 1); // 1-12
+  const currentDay = String(now.getDate());        // 1-31
   const defaultYear = String(now.getFullYear());
   
   const { choices: doctorChoices } = useChoices("doctors");
@@ -108,7 +113,8 @@ const Dashboard: React.FC = () => {
     value ? (doctorMap[String(value)] ?? value) : "—";
 
   const [filter, setFilter] = useState<Filter>({
-    month: currentMonth, // Default to current month
+    day: currentDay,        // default to today's day number
+    month: currentMonth,    // default current month
     year: defaultYear,
     q: "",
     status: "all",
@@ -120,19 +126,20 @@ const Dashboard: React.FC = () => {
   const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
   const fmt = (n: number) => nf.format(n);
 
-  // Helper to get month name
   const getMonthName = (monthNum: string) => {
     if (monthNum === "All") return "All Months";
     const idx = parseInt(monthNum);
     return months[idx] || monthNum;
   };
 
-  // Helper to get date range string
+  // Build a pretty range string honoring day selection
   const getDateRangeString = () => {
-    if (filter.month === "All") {
-      return `Year ${filter.year}`;
-    }
-    return `${getMonthName(filter.month)} ${filter.year}`;
+    const showDay = filter.day !== "All";
+    const showMonth = filter.month !== "All";
+    if (showDay && showMonth) return `Day ${filter.day}, ${getMonthName(filter.month)} ${filter.year}`;
+    if (!showDay && showMonth) return `${getMonthName(filter.month)} ${filter.year}`;
+    if (showDay && !showMonth) return `Day ${filter.day}, Year ${filter.year}`;
+    return `Year ${filter.year}`;
   };
 
   // ===== Fetch Data =====
@@ -142,7 +149,9 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       try {
         const monthParam = filter.month === "All" ? "" : filter.month;
+        const dayParam = filter.day === "All" ? "" : filter.day;
         const commonFilter = {
+          day: dayParam,                    // NEW: day number only
           month: monthParam,
           year: filter.year,
           q: debouncedQ,
@@ -152,7 +161,6 @@ const Dashboard: React.FC = () => {
         };
 
         if (tab === "overall") {
-          // overall by patient
           const res = await dataProvider.getList<PatientSummary>("patients/payment-summary", {
             pagination: { page: 1, perPage: 10000 },
             sort: { field: "name", order: "ASC" },
@@ -196,6 +204,7 @@ const Dashboard: React.FC = () => {
     dataProvider,
     notify,
     tab,
+    filter.day,
     filter.month,
     filter.year,
     debouncedQ,
@@ -213,8 +222,10 @@ const Dashboard: React.FC = () => {
     return { totalFee, totalPaid, totalDue, totalVisits };
   }, [rowsPatients]);
 
-  // ===== Enhanced CSV Downloads =====
+  // ===== CSV =====
   const toCSV = (arr: string[]) => arr.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+
+  const filenameSuffix = `${filter.day === "All" ? "AllDays" : `day-${filter.day}`}-${filter.month === "All" ? "AllMonths" : `m-${filter.month}`}-${filter.year}`;
 
   const downloadCurrentTab = () => {
     let csv = "";
@@ -228,24 +239,24 @@ const Dashboard: React.FC = () => {
         const paymentPercent = totalFee > 0 ? ((r.totalPaid / totalFee) * 100).toFixed(1) : "0";
         csv += toCSV([
           r.name,
-          fmt(r.totalVisits),
-          fmt(totalFee),
-          fmt(r.totalPaid),
-          fmt(r.totalDue),
+          String(r.totalVisits),
+          String(totalFee),
+          String(r.totalPaid),
+          String(r.totalDue),
           paymentPercent + "%"
         ]) + "\n";
       });
-      csv += "\n" + toCSV(["Total", fmt(overall.totalVisits), fmt(overall.totalFee), fmt(overall.totalPaid), fmt(overall.totalDue), ""]) + "\n";
+      csv += "\n" + toCSV(["Total", String(overall.totalVisits), String(overall.totalFee), String(overall.totalPaid), String(overall.totalDue), ""]) + "\n";
     } else if (tab === "daily") {
       csv += `Daily Payment Summary - ${dateRange}\n\n`;
       csv += toCSV(["Date", "Visits", "Total Fee", "Paid", "Due"]) + "\n";
       rowsDaily.forEach((r) =>
         (csv += toCSV([
           new Date(r.date).toLocaleDateString(),
-          fmt(r.visits),
-          fmt(r.totalFee),
-          fmt(r.totalPaid),
-          fmt(r.totalDue),
+          String(r.visits),
+          String(r.totalFee),
+          String(r.totalPaid),
+          String(r.totalDue),
         ]) + "\n")
       );
     } else if (tab === "byPaymentType") {
@@ -255,9 +266,9 @@ const Dashboard: React.FC = () => {
         (csv += toCSV([
           r.paymentType || "Not Specified",
           String(r.count),
-          fmt(r.totalFee),
-          fmt(r.totalPaid),
-          fmt(r.totalDue)
+          String(r.totalFee),
+          String(r.totalPaid),
+          String(r.totalDue)
         ]) + "\n")
       );
     } else {
@@ -267,9 +278,9 @@ const Dashboard: React.FC = () => {
         (csv += toCSV([
           doctorLabel(r.visitedDoctor) || "Not Specified",
           String(r.count),
-          fmt(r.totalFee),
-          fmt(r.totalPaid),
-          fmt(r.totalDue)
+          String(r.totalFee),
+          String(r.totalPaid),
+          String(r.totalDue)
         ]) + "\n")
       );
     }
@@ -277,7 +288,7 @@ const Dashboard: React.FC = () => {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const filename = `payment-summary-${tab}-${filter.month}-${filter.year}.csv`;
+    const filename = `payment-summary-${tab}-${filenameSuffix}.csv`;
     a.href = url;
     a.download = filename;
     a.click();
@@ -289,19 +300,17 @@ const Dashboard: React.FC = () => {
     let csv = `Comprehensive Payment Report - ${getDateRangeString()}\n`;
     csv += `Generated: ${new Date().toLocaleString()}\n\n`;
 
-    // Summary Section
     csv += "=== SUMMARY ===\n";
     csv += toCSV(["Total Visits", "Total Fee", "Total Paid", "Total Due", "Collection %"]) + "\n";
     const collectionPercent = overall.totalFee > 0 ? ((overall.totalPaid / overall.totalFee) * 100).toFixed(1) : "0";
     csv += toCSV([
-      fmt(overall.totalVisits),
-      fmt(overall.totalFee),
-      fmt(overall.totalPaid),
-      fmt(overall.totalDue),
+      String(overall.totalVisits),
+      String(overall.totalFee),
+      String(overall.totalPaid),
+      String(overall.totalDue),
       collectionPercent + "%"
     ]) + "\n\n";
 
-    // By Patient
     csv += "=== BY PATIENT ===\n";
     csv += toCSV(["Patient", "Visits", "Total Fee", "Paid", "Due", "Payment %"]) + "\n";
     rowsPatients.forEach((r) => {
@@ -309,10 +318,10 @@ const Dashboard: React.FC = () => {
       const paymentPercent = totalFee > 0 ? ((r.totalPaid / totalFee) * 100).toFixed(1) : "0";
       csv += toCSV([
         r.name,
-        fmt(r.totalVisits),
-        fmt(totalFee),
-        fmt(r.totalPaid),
-        fmt(r.totalDue),
+        String(r.totalVisits),
+        String(totalFee),
+        String(r.totalPaid),
+        String(r.totalDue),
         paymentPercent + "%"
       ]) + "\n";
     });
@@ -321,7 +330,7 @@ const Dashboard: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `comprehensive-report-${filter.month}-${filter.year}.csv`;
+    a.download = `comprehensive-report-${filenameSuffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setDownloadMenuAnchor(null);
@@ -337,10 +346,10 @@ const Dashboard: React.FC = () => {
       csv += toCSV([
         doctorLabel(r.visitedDoctor) || "Not Specified",
         String(r.count),
-        fmt(r.totalFee),
-        fmt(r.totalPaid),
-        fmt(r.totalDue),
-        fmt(Number(avgFee))
+        String(r.totalFee),
+        String(r.totalPaid),
+        String(r.totalDue),
+        String(avgFee)
       ]) + "\n";
     });
 
@@ -348,7 +357,7 @@ const Dashboard: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `doctor-visit-report-${filter.month}-${filter.year}.csv`;
+    a.download = `doctor-visit-report-${filenameSuffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setDownloadMenuAnchor(null);
@@ -372,6 +381,7 @@ const Dashboard: React.FC = () => {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
           <Box>
             <Typography variant="h5" fontWeight={700}>🩺 Payment Dashboard</Typography>
+            <Typography variant="body2" color="text.secondary">{getDateRangeString()}</Typography>
           </Box>
           <Box>
             <Tooltip title="Download Reports">
@@ -405,7 +415,7 @@ const Dashboard: React.FC = () => {
               <MenuItem onClick={downloadDoctorVisitReport}>
                 <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
                   <Typography variant="body2" fontWeight={600}>Doctor Visit Report</Typography>
-                  <Typography variant="caption" color="text.secondary">Monthly doctor statistics</Typography>
+                  <Typography variant="caption" color="text.secondary">Doctor statistics</Typography>
                 </Box>
               </MenuItem>
             </Menu>
@@ -413,6 +423,7 @@ const Dashboard: React.FC = () => {
               <IconButton
                 onClick={() => {
                   setFilter({
+                    day: currentDay,
                     month: currentMonth,
                     year: defaultYear,
                     q: "",
@@ -445,15 +456,27 @@ const Dashboard: React.FC = () => {
         >
           <TextField
             select
-            label="Month"
+            label="Day"
             size="small"
-            value={filter.month}
-            onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
+            value={filter.day}
+            onChange={(e) => setFilter({ ...filter, day: String(e.target.value) })}
           >
-            {months.map((m, i) => (
-              <MenuItem key={m} value={i === 0 ? "All" : String(i)}>{m}</MenuItem>
+            {dayChoices.map((d) => (
+              <MenuItem key={d} value={d}>{d === "All" ? "All Days" : `${d}`}</MenuItem>
             ))}
           </TextField>
+
+            <TextField
+              select
+              label="Month"
+              size="small"
+              value={filter.month}
+              onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
+            >
+              {months.map((m, i) => (
+                <MenuItem key={m} value={i === 0 ? "All" : String(i)}>{m}</MenuItem>
+              ))}
+            </TextField>
 
           <TextField
             label="Year"
@@ -519,10 +542,12 @@ const Dashboard: React.FC = () => {
         </Paper>
 
         {/* Active Filters Alert */}
-        {(filter.visitedDoctor || filter.q || filter.status !== "all" || filter.paymentType) && (
+        {(filter.visitedDoctor || filter.q || filter.status !== "all" || filter.paymentType || filter.day !== currentDay || filter.month !== currentMonth) && (
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
               <strong>Active Filters:</strong>{" "}
+              {filter.day !== "All" && `Day: ${filter.day} · `}
+              {filter.month !== "All" && `Month: ${getMonthName(filter.month)} · `}
               {filter.visitedDoctor && `Doctor: ${doctorLabel(filter.visitedDoctor)} · `}
               {filter.q && `Patient: ${filter.q} · `}
               {filter.status !== "all" && `Status: ${filter.status} · `}
