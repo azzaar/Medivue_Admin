@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Card, CardContent, Typography, Divider, CircularProgress, TextField,
   Paper, Table, TableHead, TableRow, TableCell, TableBody, MenuItem,
-  Fade, Tabs, Tab, IconButton, Tooltip
+  Fade, Tabs, Tab, IconButton, Tooltip, Alert, Menu
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { useDataProvider, useNotify } from "react-admin";
 import { useChoices } from "@/hooks/useHooks";
 
@@ -20,12 +21,12 @@ interface PatientSummary {
 type StatusFilter = "all" | "active" | "closed";
 
 interface Filter {
-  month: string;          // "All" | "1".."12"
-  year: string;           // "2025"
-  q: string;              // patient name search (server uses q or name)
+  month: string;
+  year: string;
+  q: string;
   status: StatusFilter;
   paymentType: "" | "cash" | "upi" | "card" | "bank";
-  visitedDoctor: string;  // doctor id or doctor name (your backend accepts either)
+  visitedDoctor: string;
 }
 
 interface Totals {
@@ -36,8 +37,8 @@ interface Totals {
 }
 
 interface DailyRow {
-  id: string;         // "YYYY-MM-DD"
-  date: string;       // ISO
+  id: string;
+  date: string;
   visits: number;
   totalPaid: number;
   totalDue: number;
@@ -45,21 +46,21 @@ interface DailyRow {
 }
 
 interface PaymentTypeRow {
-  id: string;         // payment type key
+  id: string;
   paymentType: string;
   totalPaid: number;
   totalDue: number;
   totalFee: number;
-  count: number;      // number of payments
+  count: number;
 }
 
 interface DoctorRow {
-  id: string;         // doctor identifier/name
+  id: string;
   visitedDoctor: string;
   totalPaid: number;
   totalDue: number;
   totalFee: number;
-  count: number;      // number of payments
+  count: number;
 }
 
 const months = [
@@ -83,29 +84,31 @@ const Dashboard: React.FC = () => {
   const notify = useNotify();
 
   const now = new Date();
-  const defaultMonth = "All";
+  const currentMonth = String(now.getMonth() + 1); // 1-12
   const defaultYear = String(now.getFullYear());
-const { choices: doctorChoices }  = useChoices("doctors");
-const { choices: patientChoices } = useChoices("patients");
+  
+  const { choices: doctorChoices } = useChoices("doctors");
+  const { choices: patientChoices } = useChoices("patients");
+  
   const [tab, setTab] = useState<TabKey>("overall");
-
   const [rowsPatients, setRowsPatients] = useState<PatientSummary[]>([]);
   const [rowsDaily, setRowsDaily] = useState<DailyRow[]>([]);
   const [rowsByPaymentType, setRowsByPaymentType] = useState<PaymentTypeRow[]>([]);
   const [rowsByDoctor, setRowsByDoctor] = useState<DoctorRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
- const doctorMap = useMemo(() => {
+  const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const doctorMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const d of doctorChoices) map[String(d.id)] = d.name;
     return map;
   }, [doctorChoices]);
 
-  // simple helper (not a hook)
   const doctorLabel = (value?: string) =>
     value ? (doctorMap[String(value)] ?? value) : "—";
-  // UI filter (live)
+
   const [filter, setFilter] = useState<Filter>({
-    month: defaultMonth,
+    month: currentMonth, // Default to current month
     year: defaultYear,
     q: "",
     status: "all",
@@ -113,13 +116,26 @@ const { choices: patientChoices } = useChoices("patients");
     visitedDoctor: "",
   });
 
-  // live fetch on change (debounced for q)
   const debouncedQ = useDebounced(filter.q);
-
   const nf = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
   const fmt = (n: number) => nf.format(n);
 
-  // ===== Fetch Data for active tab (no Apply button) =====
+  // Helper to get month name
+  const getMonthName = (monthNum: string) => {
+    if (monthNum === "All") return "All Months";
+    const idx = parseInt(monthNum);
+    return months[idx] || monthNum;
+  };
+
+  // Helper to get date range string
+  const getDateRangeString = () => {
+    if (filter.month === "All") {
+      return `Year ${filter.year}`;
+    }
+    return `${getMonthName(filter.month)} ${filter.year}`;
+  };
+
+  // ===== Fetch Data =====
   useEffect(() => {
     let isMounted = true;
     const fetchForTab = async () => {
@@ -188,7 +204,7 @@ const { choices: patientChoices } = useChoices("patients");
     filter.visitedDoctor,
   ]);
 
-  // ===== Overall Totals (from patient rows) =====
+  // ===== Overall Totals =====
   const overall: Totals = useMemo(() => {
     const totalPaid = rowsPatients.reduce((s, r) => s + (r.totalPaid || 0), 0);
     const totalDue = rowsPatients.reduce((s, r) => s + (r.totalDue || 0), 0);
@@ -196,57 +212,154 @@ const { choices: patientChoices } = useChoices("patients");
     const totalVisits = rowsPatients.reduce((s, r) => s + (r.totalVisits || 0), 0);
     return { totalFee, totalPaid, totalDue, totalVisits };
   }, [rowsPatients]);
-// Put these at the top of Dashboard.tsx (outside the component)
 
+  // ===== Enhanced CSV Downloads =====
+  const toCSV = (arr: string[]) => arr.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
 
-
-  // ===== CSV Download (current tab) =====
-  const downloadCSV = () => {
+  const downloadCurrentTab = () => {
     let csv = "";
-    const toCSV = (arr: string[]) => arr.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
-
+    const dateRange = getDateRangeString();
+    
     if (tab === "overall") {
-      csv += toCSV(["Patient", "Visits", "Paid", "Due"]) + "\n";
-      rowsPatients.forEach((r) =>
-        (csv += toCSV([r.name, fmt(r.totalVisits), r.totalPaid > 0 ? fmt(r.totalPaid) : "0", r.totalDue > 0 ? fmt(r.totalDue) : "0"]) + "\n")
-      );
+      csv += `Patient Payment Summary - ${dateRange}\n\n`;
+      csv += toCSV(["Patient", "Visits", "Total Fee", "Paid", "Due", "Payment %"]) + "\n";
+      rowsPatients.forEach((r) => {
+        const totalFee = r.totalPaid + r.totalDue;
+        const paymentPercent = totalFee > 0 ? ((r.totalPaid / totalFee) * 100).toFixed(1) : "0";
+        csv += toCSV([
+          r.name,
+          fmt(r.totalVisits),
+          fmt(totalFee),
+          fmt(r.totalPaid),
+          fmt(r.totalDue),
+          paymentPercent + "%"
+        ]) + "\n";
+      });
+      csv += "\n" + toCSV(["Total", fmt(overall.totalVisits), fmt(overall.totalFee), fmt(overall.totalPaid), fmt(overall.totalDue), ""]) + "\n";
     } else if (tab === "daily") {
-      csv += toCSV(["Date", "Visits", "Paid", "Due"]) + "\n";
+      csv += `Daily Payment Summary - ${dateRange}\n\n`;
+      csv += toCSV(["Date", "Visits", "Total Fee", "Paid", "Due"]) + "\n";
       rowsDaily.forEach((r) =>
         (csv += toCSV([
-     r.date,
+          new Date(r.date).toLocaleDateString(),
           fmt(r.visits),
-          r.totalPaid > 0 ? fmt(r.totalPaid) : "0",
-          r.totalDue > 0 ? fmt(r.totalDue) : "0",
+          fmt(r.totalFee),
+          fmt(r.totalPaid),
+          fmt(r.totalDue),
         ]) + "\n")
       );
     } else if (tab === "byPaymentType") {
-      csv += toCSV(["Payment Type", "Count", "Paid", "Due"]) + "\n";
+      csv += `Payment Type Summary - ${dateRange}\n\n`;
+      csv += toCSV(["Payment Type", "Count", "Total Fee", "Paid", "Due"]) + "\n";
       rowsByPaymentType.forEach((r) =>
-        (csv += toCSV([r.paymentType || "—", String(r.count), r.totalPaid > 0 ? fmt(r.totalPaid) : "0", r.totalDue > 0 ? fmt(r.totalDue) : "0"]) + "\n")
+        (csv += toCSV([
+          r.paymentType || "Not Specified",
+          String(r.count),
+          fmt(r.totalFee),
+          fmt(r.totalPaid),
+          fmt(r.totalDue)
+        ]) + "\n")
       );
     } else {
-      csv += toCSV(["Doctor", "Count", "Paid", "Due"]) + "\n";
+      csv += `Doctor Visit Summary - ${dateRange}\n\n`;
+      csv += toCSV(["Doctor", "Visit Count", "Total Fee", "Paid", "Due"]) + "\n";
       rowsByDoctor.forEach((r) =>
-        (csv += toCSV([ doctorLabel(r.visitedDoctor) || "—", String(r.count), r.totalPaid > 0 ? fmt(r.totalPaid) : "0", r.totalDue > 0 ? fmt(r.totalDue) : "0"]) + "\n")
+        (csv += toCSV([
+          doctorLabel(r.visitedDoctor) || "Not Specified",
+          String(r.count),
+          fmt(r.totalFee),
+          fmt(r.totalPaid),
+          fmt(r.totalDue)
+        ]) + "\n")
       );
     }
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const base = tab === "overall" ? "by-patient" : tab === "daily" ? "by-day" : tab === "byPaymentType" ? "by-payment-type" : "by-doctor";
+    const filename = `payment-summary-${tab}-${filter.month}-${filter.year}.csv`;
     a.href = url;
-    a.download = `payment-summary-${base}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    setDownloadMenuAnchor(null);
+  };
+
+  const downloadComprehensiveReport = () => {
+    let csv = `Comprehensive Payment Report - ${getDateRangeString()}\n`;
+    csv += `Generated: ${new Date().toLocaleString()}\n\n`;
+
+    // Summary Section
+    csv += "=== SUMMARY ===\n";
+    csv += toCSV(["Total Visits", "Total Fee", "Total Paid", "Total Due", "Collection %"]) + "\n";
+    const collectionPercent = overall.totalFee > 0 ? ((overall.totalPaid / overall.totalFee) * 100).toFixed(1) : "0";
+    csv += toCSV([
+      fmt(overall.totalVisits),
+      fmt(overall.totalFee),
+      fmt(overall.totalPaid),
+      fmt(overall.totalDue),
+      collectionPercent + "%"
+    ]) + "\n\n";
+
+    // By Patient
+    csv += "=== BY PATIENT ===\n";
+    csv += toCSV(["Patient", "Visits", "Total Fee", "Paid", "Due", "Payment %"]) + "\n";
+    rowsPatients.forEach((r) => {
+      const totalFee = r.totalPaid + r.totalDue;
+      const paymentPercent = totalFee > 0 ? ((r.totalPaid / totalFee) * 100).toFixed(1) : "0";
+      csv += toCSV([
+        r.name,
+        fmt(r.totalVisits),
+        fmt(totalFee),
+        fmt(r.totalPaid),
+        fmt(r.totalDue),
+        paymentPercent + "%"
+      ]) + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `comprehensive-report-${filter.month}-${filter.year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDownloadMenuAnchor(null);
+  };
+
+  const downloadDoctorVisitReport = () => {
+    let csv = `Doctor Visit Report - ${getDateRangeString()}\n`;
+    csv += `Generated: ${new Date().toLocaleString()}\n\n`;
+    
+    csv += toCSV(["Doctor", "Visit Count", "Total Fee", "Total Paid", "Total Due", "Avg Fee/Visit"]) + "\n";
+    rowsByDoctor.forEach((r) => {
+      const avgFee = r.count > 0 ? (r.totalFee / r.count).toFixed(0) : "0";
+      csv += toCSV([
+        doctorLabel(r.visitedDoctor) || "Not Specified",
+        String(r.count),
+        fmt(r.totalFee),
+        fmt(r.totalPaid),
+        fmt(r.totalDue),
+        fmt(Number(avgFee))
+      ]) + "\n";
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `doctor-visit-report-${filter.month}-${filter.year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDownloadMenuAnchor(null);
   };
 
   // ===== Loading =====
   if (loading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "70vh" }}>
-        <CircularProgress />
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "70vh", flexDirection: "column", gap: 2 }}>
+        <CircularProgress size={48} />
+        <Typography color="text.secondary">Loading payment data...</Typography>
       </Box>
     );
   }
@@ -257,19 +370,51 @@ const { choices: patientChoices } = useChoices("patients");
       <Box sx={{ p: { xs: 2, md: 4 } }}>
         {/* Header */}
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-          <Typography variant="h5" fontWeight={700}>🩺 Medivue Payment Dashboard</Typography>
           <Box>
-            <Tooltip title="Download CSV (current tab)">
-              <IconButton onClick={downloadCSV} color="primary" size="large">
+            <Typography variant="h5" fontWeight={700}>🩺 Payment Dashboard</Typography>
+          </Box>
+          <Box>
+            <Tooltip title="Download Reports">
+              <IconButton 
+                onClick={(e) => setDownloadMenuAnchor(e.currentTarget)} 
+                color="primary" 
+                size="large"
+                sx={{ bgcolor: "primary.50", "&:hover": { bgcolor: "primary.100" } }}
+              >
                 <DownloadIcon />
+                <KeyboardArrowDownIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            <Menu
+              anchorEl={downloadMenuAnchor}
+              open={Boolean(downloadMenuAnchor)}
+              onClose={() => setDownloadMenuAnchor(null)}
+            >
+              <MenuItem onClick={downloadCurrentTab}>
+                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
+                  <Typography variant="body2" fontWeight={600}>Current Tab</Typography>
+                  <Typography variant="caption" color="text.secondary">Download {tab} view</Typography>
+                </Box>
+              </MenuItem>
+              <MenuItem onClick={downloadComprehensiveReport}>
+                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
+                  <Typography variant="body2" fontWeight={600}>Comprehensive Report</Typography>
+                  <Typography variant="caption" color="text.secondary">Full patient summary</Typography>
+                </Box>
+              </MenuItem>
+              <MenuItem onClick={downloadDoctorVisitReport}>
+                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
+                  <Typography variant="body2" fontWeight={600}>Doctor Visit Report</Typography>
+                  <Typography variant="caption" color="text.secondary">Monthly doctor statistics</Typography>
+                </Box>
+              </MenuItem>
+            </Menu>
             <Tooltip title="Reset filters">
               <IconButton
                 onClick={() => {
                   setFilter({
-                    month: "All",
-                    year: String(now.getFullYear()),
+                    month: currentMonth,
+                    year: defaultYear,
                     q: "",
                     status: "all",
                     paymentType: "",
@@ -283,15 +428,7 @@ const { choices: patientChoices } = useChoices("patients");
             </Tooltip>
           </Box>
         </Box>
-        <Divider sx={{ mb: 2 }} />
-
-        {/* Tabs */}
-        <Tabs value={tab} onChange={(_, v: TabKey) => setTab(v)} sx={{ mb: 2 }}>
-          <Tab label="Overall (By Patient)" value="overall" />
-          <Tab label="By Day" value="daily" />
-          <Tab label="By Payment Type" value="byPaymentType" />
-          <Tab label="By Doctor" value="byDoctor" />
-        </Tabs>
+        <Divider sx={{ mb: 3 }} />
 
         {/* Filter Bar */}
         <Paper
@@ -306,7 +443,6 @@ const { choices: patientChoices } = useChoices("patients");
             boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
           }}
         >
-          {/* Month */}
           <TextField
             select
             label="Month"
@@ -319,7 +455,6 @@ const { choices: patientChoices } = useChoices("patients");
             ))}
           </TextField>
 
-          {/* Year */}
           <TextField
             label="Year"
             type="number"
@@ -328,35 +463,32 @@ const { choices: patientChoices } = useChoices("patients");
             onChange={(e) => setFilter({ ...filter, year: String(e.target.value) })}
           />
 
-          {/* Name search */}
-  <TextField
-  select
-  label="Doctor"
-  size="small"
-  value={filter.visitedDoctor}
-  onChange={(e) => setFilter({ ...filter, visitedDoctor: String(e.target.value) })}
->
-  <MenuItem value="">All</MenuItem>
-  {doctorChoices.map(d => (
-    <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-  ))}
-</TextField>
+          <TextField
+            select
+            label="Doctor"
+            size="small"
+            value={filter.visitedDoctor}
+            onChange={(e) => setFilter({ ...filter, visitedDoctor: String(e.target.value) })}
+          >
+            <MenuItem value="">All Doctors</MenuItem>
+            {doctorChoices.map(d => (
+              <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+            ))}
+          </TextField>
 
-<TextField
-  select
-  label="Patient"
-  size="small"
-  value={filter.q}                 // if backend searches by patient name/id, adjust as needed
-  onChange={(e) => setFilter({ ...filter, q: String(e.target.value) })}
->
-  <MenuItem value="">All</MenuItem>
-  {patientChoices.map(p => (
-    <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
-  ))}
-</TextField>
+          <TextField
+            select
+            label="Patient"
+            size="small"
+            value={filter.q}
+            onChange={(e) => setFilter({ ...filter, q: String(e.target.value) })}
+          >
+            <MenuItem value="">All Patients</MenuItem>
+            {patientChoices.map(p => (
+              <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
+            ))}
+          </TextField>
 
-
-          {/* Status */}
           <TextField
             select
             label="Status"
@@ -364,12 +496,11 @@ const { choices: patientChoices } = useChoices("patients");
             value={filter.status}
             onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
           >
-            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="all">All Status</MenuItem>
             <MenuItem value="active">Active</MenuItem>
             <MenuItem value="closed">Closed</MenuItem>
           </TextField>
 
-          {/* Payment Type */}
           <TextField
             select
             label="Payment Type"
@@ -379,16 +510,36 @@ const { choices: patientChoices } = useChoices("patients");
               setFilter({ ...filter, paymentType: e.target.value as Filter["paymentType"] })
             }
           >
-            <MenuItem value="">All</MenuItem>
+            <MenuItem value="">All Types</MenuItem>
             <MenuItem value="upi">UPI</MenuItem>
             <MenuItem value="cash">Cash</MenuItem>
+            <MenuItem value="card">Card</MenuItem>
+            <MenuItem value="bank">Bank Transfer</MenuItem>
           </TextField>
-
-   
-
         </Paper>
 
-        {/* KPI Cards (from Overall tab data) */}
+        {/* Active Filters Alert */}
+        {(filter.visitedDoctor || filter.q || filter.status !== "all" || filter.paymentType) && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Active Filters:</strong>{" "}
+              {filter.visitedDoctor && `Doctor: ${doctorLabel(filter.visitedDoctor)} · `}
+              {filter.q && `Patient: ${filter.q} · `}
+              {filter.status !== "all" && `Status: ${filter.status} · `}
+              {filter.paymentType && `Payment: ${filter.paymentType.toUpperCase()}`}
+            </Typography>
+          </Alert>
+        )}
+
+        {/* Tabs */}
+        <Tabs value={tab} onChange={(_, v: TabKey) => setTab(v)} sx={{ mb: 3 }}>
+          <Tab label="By Patient" value="overall" />
+          <Tab label="By Day" value="daily" />
+          <Tab label="By Payment Type" value="byPaymentType" />
+          <Tab label="By Doctor" value="byDoctor" />
+        </Tabs>
+
+        {/* KPI Cards */}
         {tab === "overall" && (
           <Box
             sx={{
@@ -430,7 +581,7 @@ const { choices: patientChoices } = useChoices("patients");
         <Paper sx={{ p: 3, borderRadius: 3 }}>
           {tab === "overall" && (
             <>
-              <Typography variant="h6" gutterBottom>👩‍⚕️ By Patient</Typography>
+              <Typography variant="h6" gutterBottom>👩‍⚕️ Patient Payment Summary</Typography>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
@@ -471,7 +622,7 @@ const { choices: patientChoices } = useChoices("patients");
 
           {tab === "daily" && (
             <>
-              <Typography variant="h6" gutterBottom>📅 By Day</Typography>
+              <Typography variant="h6" gutterBottom>📅 Daily Summary</Typography>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
@@ -512,7 +663,7 @@ const { choices: patientChoices } = useChoices("patients");
 
           {tab === "byPaymentType" && (
             <>
-              <Typography variant="h6" gutterBottom>💳 By Payment Type</Typography>
+              <Typography variant="h6" gutterBottom>💳 Payment Type Summary</Typography>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
@@ -553,12 +704,12 @@ const { choices: patientChoices } = useChoices("patients");
 
           {tab === "byDoctor" && (
             <>
-              <Typography variant="h6" gutterBottom>🩺 By Doctor</Typography>
+              <Typography variant="h6" gutterBottom>🩺 Doctor Visit Summary</Typography>
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
                     <TableCell>Doctor</TableCell>
-                    <TableCell align="right">Count</TableCell>
+                    <TableCell align="right">Visit Count</TableCell>
                     <TableCell align="right" sx={{ color: "success.main" }}>Paid</TableCell>
                     <TableCell align="right" sx={{ color: "warning.main" }}>Due</TableCell>
                   </TableRow>
@@ -567,18 +718,18 @@ const { choices: patientChoices } = useChoices("patients");
                   {rowsByDoctor.length ? (
                     rowsByDoctor.map((r) => (
                       <TableRow key={r.id} hover>
-      <TableCell>{doctorLabel(r.visitedDoctor)}</TableCell>
-      <TableCell align="right">{fmt(r.count)}</TableCell>
-      <TableCell align="right" sx={{ color: "success.main" }}>
-        {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-      </TableCell>
-      <TableCell
-        align="right"
-        sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-      >
-        {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-      </TableCell>
-    </TableRow>
+                        <TableCell>{doctorLabel(r.visitedDoctor)}</TableCell>
+                        <TableCell align="right">{fmt(r.count)}</TableCell>
+                        <TableCell align="right" sx={{ color: "success.main" }}>
+                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
+                        >
+                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : (
                     <TableRow>

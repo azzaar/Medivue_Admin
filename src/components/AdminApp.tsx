@@ -36,6 +36,7 @@ import {
   JobCategoryShow,
 } from "./Job";
 import Dashboard from "./Dashboard";
+import ExpenseTracker from "./Expense/List";
 
 
 const AdminApp = () => {
@@ -76,14 +77,14 @@ const AdminApp = () => {
                   show={DoctorShow}
                   icon={GroupIcon}
                 />
-                {/* <Resource
+                <Resource
   name="expenses"
-  list={ExpenseList}
-  create={ExpenseCreate}
-  edit={ExpenseEdit}
-  show={ExpenseShow}
-  icon={WalletIcon}
-/> */}
+  list={ExpenseTracker}
+  
+  // create={ExpenseCreate}
+  // edit={ExpenseEdit}
+  // show={ExpenseShow}
+/>
                 <Resource
                   name="appointments"
                   list={AppoinmentList}

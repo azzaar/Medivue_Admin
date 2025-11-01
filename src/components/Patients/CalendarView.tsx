@@ -243,12 +243,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     }
 
     try {
-      if (!alreadyVisited) {
-        await dataProvider.create(`patients/${patientId}/mark-visit`, {
-          data: { visitDate: key },
-        });
-        setVisitedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
-      }
+      // if (!alreadyVisited) {
+      //   await dataProvider.create(`patients/${patientId}/mark-visit`, {
+      //     data: { visitDate: key },
+      //   });
+      //   setVisitedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      // }
 
       await dataProvider.create(`patients/${patientId}/visit-payment`, {
         data: {
