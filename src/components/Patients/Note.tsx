@@ -17,10 +17,6 @@ import {
   DialogContentText,
   DialogTitle,
   CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   TextareaAutosize,
   FormControl,
   InputLabel,
@@ -29,6 +25,15 @@ import {
   Paper,
   Divider,
   Tooltip,
+  Chip,
+  Card,
+  CardContent,
+  Collapse,
+  Badge,
+  useTheme,
+  useMediaQuery,
+  Container,
+  Avatar,
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -40,9 +45,15 @@ import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import TextsmsIcon from "@mui/icons-material/Textsms";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-
-// PDF
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import PersonIcon from "@mui/icons-material/Person";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import ImageIcon from "@mui/icons-material/Image";
+import MedicationIcon from "@mui/icons-material/Medication";
+import AssignmentIcon from "@mui/icons-material/Assignment";
 import jsPDF from "jspdf";
+import Grid from '@mui/material/GridLegacy';
 
 // -------- Types --------
 interface MMTAction {
@@ -109,10 +120,16 @@ const PatientNotes: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const dataProvider = useDataProvider();
   const notify = useNotify();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [record, setRecord] = useState<Patient | null>(null);
-  const [viewMode, setViewMode] = useState<"notes" | "editor">("notes"); // <<< show either notes or editor
+  const [viewMode, setViewMode] = useState<"notes" | "editor">("notes");
   const [tabIndex, setTabIndex] = useState(0);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    patientInfo: false,
+    mmt: false,
+  });
 
   // editor state
   const [noteDate, setNoteDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -153,7 +170,9 @@ const PatientNotes: React.FC = () => {
   }, [id, dataProvider, notify]);
 
   const sortedNotes: Note[] =
-    record?.notes?.length ? [...record.notes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()) : [];
+    record?.notes?.length
+      ? [...record.notes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime())
+      : [];
 
   useEffect(() => {
     if (sortedNotes.length > 0 && tabIndex >= sortedNotes.length) setTabIndex(0);
@@ -161,6 +180,10 @@ const PatientNotes: React.FC = () => {
   }, [sortedNotes.length, tabIndex]);
 
   // -------- UI helpers --------
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
   const goToEditor = () => {
     resetFormFields();
     setViewMode("editor");
@@ -328,7 +351,6 @@ const PatientNotes: React.FC = () => {
 
       let nextNotes: Note[];
       if (editingNoteIndex !== null) {
-        // find original index in record.notes matching sortedNotes[editingNoteIndex]
         const target = sortedNotes[editingNoteIndex];
         const originalIndex = record.notes.findIndex(
           (n) => n.noteDate === target.noteDate && (n.history ?? "") === (target.history ?? "")
@@ -348,7 +370,6 @@ const PatientNotes: React.FC = () => {
 
       notify(editingNoteIndex !== null ? "Note updated" : "Note added", { type: "success" });
 
-      // refresh record & go back to notes
       const { data } = await dataProvider.getOne<Patient>("patients", { id: record.id });
       setRecord(data);
       setViewMode("notes");
@@ -447,7 +468,6 @@ const PatientNotes: React.FC = () => {
       const doc = new jsPDF("p", "mm", "a4");
       let y = 10;
 
-      // logo
       if (YOUR_LOGO_PATH) {
         const img = new Image();
         img.src = YOUR_LOGO_PATH;
@@ -472,7 +492,6 @@ const PatientNotes: React.FC = () => {
       doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, 105, y, { align: "center" });
       y += 15;
 
-      // patient info
       doc.setFontSize(14).setFont("helvetica", "bold").text("Patient Information", 15, y);
       y += 8;
       doc.setFontSize(11).setFont("helvetica", "normal");
@@ -507,7 +526,9 @@ const PatientNotes: React.FC = () => {
         doc.setFontSize(11).setFont("helvetica", "italic").text("No notes available.", 15, y);
         y += 7;
       } else {
-        const list = [...sortedNotes].sort((a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime());
+        const list = [...sortedNotes].sort(
+          (a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
+        );
         for (const note of list) {
           if (y > 270) {
             doc.addPage();
@@ -570,9 +591,15 @@ const PatientNotes: React.FC = () => {
 
       const pages = doc.getNumberOfPages();
       for (let i = 1; i <= pages; i++) {
-        doc.setPage(i).setFontSize(8).text(`Page ${i} of ${pages}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10, {
-          align: "right",
-        });
+        doc
+          .setPage(i)
+          .setFontSize(8)
+          .text(
+            `Page ${i} of ${pages}`,
+            doc.internal.pageSize.width - 20,
+            doc.internal.pageSize.height - 10,
+            { align: "right" }
+          );
       }
 
       doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
@@ -584,446 +611,635 @@ const PatientNotes: React.FC = () => {
     }
   };
 
-  if (!record) return <Typography m={3}>Loading patient data...</Typography>;
+  if (!record) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "70vh", gap: 2 }}>
+        <CircularProgress size={48} />
+        <Typography color="text.secondary">Loading patient data...</Typography>
+      </Box>
+    );
+  }
 
   // -------- UI --------
   return (
-    <Box p={{ xs: 2, md: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h5" fontWeight={700}>
-          Patient Notes — {record.name}
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          {viewMode === "notes" ? (
-            <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={goToEditor}>
-              Add Note
-            </Button>
-          ) : (
-            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={backToNotes}>
-              Back to Notes
-            </Button>
-          )}
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={pdfLoading ? <CircularProgress size={18} /> : <PictureAsPdfIcon />}
-            onClick={handleDownloadPdf}
-            disabled={pdfLoading}
-          >
-            {pdfLoading ? "Generating..." : "Download PDF"}
-          </Button>
-        </Stack>
-      </Stack>
+    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
+      {/* Header */}
+      <Card sx={{ mb: 3, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+        <CardContent sx={{ py: { xs: 2, md: 3 } }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 56, height: 56 }}>
+                <PersonIcon sx={{ fontSize: 32 }} />
+              </Avatar>
+              <Box>
+                <Typography variant={isMobile ? "h6" : "h5"} fontWeight={700}>
+                  {record.name}
+                </Typography>
+                <Stack direction="row" spacing={2} flexWrap="wrap">
+                  <Chip 
+                    label={`${record.age ?? 'N/A'} yrs`} 
+                    size="small" 
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }}
+                  />
+                  <Chip 
+                    label={record.gender ?? 'N/A'} 
+                    size="small" 
+                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }}
+                  />
+                 
+                </Stack>
+              </Box>
+            </Stack>
+            <Stack direction={{ xs: 'row', md: 'column' }} spacing={1} width={{ xs: '100%', md: 'auto' }}>
+              {viewMode === "notes" ? (
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddCircleOutlineIcon />} 
+                  onClick={goToEditor}
+                  fullWidth={isMobile}
+                  sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' } }}
+                >
+                  Add Note
+                </Button>
+              ) : (
+                <Button 
+                  variant="outlined" 
+                  startIcon={<ArrowBackIcon />} 
+                  onClick={backToNotes}
+                  fullWidth={isMobile}
+                  sx={{ borderColor: 'white', color: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                >
+                  Back
+                </Button>
+              )}
+              <Button
+                variant="outlined"
+                startIcon={pdfLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <PictureAsPdfIcon />}
+                onClick={handleDownloadPdf}
+                disabled={pdfLoading}
+                fullWidth={isMobile}
+                sx={{ borderColor: 'white', color: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+              >
+                {pdfLoading ? "Generating..." : "PDF"}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
 
-      {/* Patient info card */}
-      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
-        <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-          Personal Information
-        </Typography>
-        <Divider sx={{ mb: 1 }} />
-        <Stack spacing={0.5} direction="row" flexWrap="wrap" useFlexGap>
-          <Info label="Age" value={record.age} />
-          <Info label="Sex" value={record.gender} />
-          <Info label="Phone" value={record.phoneNumber} />
-          <Info label="Email" value={record.email} />
-          <Info label="Condition" value={record.condition} />
-          <Info
-            label="Address"
-            value={
-              record.address
-                ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
-                : undefined
-            }
-          />
-        </Stack>
-      </Paper>
+      {/* Patient info card - Collapsible */}
+      <Card sx={{ mb: 3, boxShadow: 3 }}>
+        <CardContent>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" onClick={() => toggleSection('patientInfo')} sx={{ cursor: 'pointer' }}>
+            <Typography variant="h6" fontWeight={700}>Personal Information</Typography>
+            <IconButton size="small">
+              {expandedSections.patientInfo ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Stack>
+          <Collapse in={expandedSections.patientInfo}>
+            <Divider sx={{ my: 2 }} />
+            <Grid container spacing={2}>
+              <InfoCard icon={<PersonIcon />} label="Phone" value={record.phoneNumber} />
+              <InfoCard icon={<PersonIcon />} label="Email" value={record.email} />
+              <InfoCard icon={<PersonIcon />} label="Alt. Phone" value={record.alternatePhoneNumber} />
+              <InfoCard 
+                icon={<PersonIcon />} 
+                label="Address" 
+                value={
+                  record.address
+                    ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
+                    : undefined
+                }
+                fullWidth
+              />
+            </Grid>
+          </Collapse>
+        </CardContent>
+      </Card>
 
       {/* View Mode Switch */}
       {viewMode === "notes" ? (
         // ----- PREVIOUS NOTES -----
-        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
-            <Typography variant="h6" fontWeight={700}>
-              Previous Notes
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {sortedNotes.length} note{sortedNotes.length === 1 ? "" : "s"}
-            </Typography>
-          </Stack>
-          {!sortedNotes.length ? (
-            <Typography color="text.secondary" sx={{ mt: 1 }}>
-              No notes yet. Click “Add Note” to create one.
-            </Typography>
-          ) : (
-            <>
-              <Tabs
-                value={tabIndex}
-                onChange={(_, v: number) => setTabIndex(v)}
-                variant="scrollable"
-                scrollButtons="auto"
-                allowScrollButtonsMobile
-                sx={{ mb: 2, "& .MuiTabs-indicator": { backgroundColor: "primary.main" } }}
-              >
-                {sortedNotes.map((n, i) => (
-                  <Tab
-                    key={`tab-${i}`}
-                    label={new Date(n.noteDate).toLocaleDateString()}
-                    sx={{
+        <Card sx={{ boxShadow: 3 }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <AssignmentIcon color="primary" />
+                <Typography variant="h6" fontWeight={700}>
+                  Clinical Notes
+                </Typography>
+              </Stack>
+              <Badge badgeContent={sortedNotes.length} color="primary" max={99}>
+                <Chip label="Total" variant="outlined" />
+              </Badge>
+            </Stack>
+            {!sortedNotes.length ? (
+              <Box sx={{ textAlign: 'center', py: 8, px: 2 }}>
+                <AssignmentIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                <Typography color="text.secondary" variant="h6" gutterBottom>
+                  No clinical notes yet
+                </Typography>
+                <Typography color="text.secondary" sx={{ mb: 3 }}>
+                  Start documenting patient progress by adding your first note
+                </Typography>
+                <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={goToEditor} size="large">
+                  Create First Note
+                </Button>
+              </Box>
+            ) : (
+              <>
+                <Tabs
+                  value={tabIndex}
+                  onChange={(_, v: number) => setTabIndex(v)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  allowScrollButtonsMobile
+                  sx={{ 
+                    mb: 3,
+                    '& .MuiTab-root': { 
+                      textTransform: 'none',
                       fontWeight: 600,
-                      textTransform: "none",
-                    }}
-                  />
-                ))}
-              </Tabs>
+                      minHeight: { xs: 48, md: 64 },
+                      px: { xs: 2, md: 3 }
+                    },
+                    '& .Mui-selected': {
+                      color: 'primary.main'
+                    }
+                  }}
+                >
+                  {sortedNotes.map((n, i) => (
+                    <Tab
+                      key={`tab-${i}`}
+                      icon={<CalendarTodayIcon fontSize="small" />}
+                      iconPosition="start"
+                      label={new Date(n.noteDate).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      })}
+                    />
+                  ))}
+                </Tabs>
 
-              {sortedNotes[tabIndex] && (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
-                    </Typography>
-                    <Box>
-                      <Tooltip title="Edit this note">
-                        <IconButton color="primary" size="small" onClick={() => handleEditNote(tabIndex)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete this note">
-                        <IconButton color="error" size="small" onClick={() => handleDeleteClick(tabIndex)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Stack>
-                  <Divider sx={{ mb: 2 }} />
-
-                  <NoteField label="Chief Complaint" value={sortedNotes[tabIndex].chiefComplaint} />
-                  <NoteField label="History" value={sortedNotes[tabIndex].history} />
-                  <NoteField label="Medications" value={sortedNotes[tabIndex].medications} />
-                  <NoteField label="On Observation" value={sortedNotes[tabIndex].onObservation} />
-                  <NoteField label="On Palpation" value={sortedNotes[tabIndex].onPalpation} />
-                  <NoteField label="Pain Assessment (NPRS)" value={sortedNotes[tabIndex].painAssessmentNPRS} />
-                  <NoteField label="On Examination" value={sortedNotes[tabIndex].onExamination} />
-
-                  {/* MMT */}
-                  <Box mt={1}>
-                    <Typography variant="subtitle2" fontWeight={700}>
-                      MMT
-                    </Typography>
-                    {sortedNotes[tabIndex].mmt?.length ? (
-                      <Box>
-                        {sortedNotes[tabIndex].mmt.map((j) => (
-                          <Box key={j.joint} sx={{ pl: 1, py: 0.5 }}>
-                            <Typography fontWeight={700}>{j.joint}</Typography>
-                            {!!j.right?.actions?.length && (
-                              <Typography variant="body2" color="text.secondary">
-                                <strong>Right:</strong>{" "}
-                                {j.right.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}
-                              </Typography>
-                            )}
-                            {!!j.left?.actions?.length && (
-                              <Typography variant="body2" color="text.secondary">
-                                <strong>Left:</strong>{" "}
-                                {j.left.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}
-                              </Typography>
-                            )}
-                            {!j.right?.actions?.length && !j.left?.actions?.length && (
-                              <Typography variant="body2" color="text.secondary">
-                                N/A
-                              </Typography>
-                            )}
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        N/A
-                      </Typography>
-                    )}
-                  </Box>
-
-                  <NoteField label="Treatment" value={sortedNotes[tabIndex].treatment} />
-
-                  {/* Additional Notes */}
-                  {(sortedNotes[tabIndex].additionalNotes ?? []).length > 0 && (
-                    <Box mt={1}>
-                      <Typography variant="subtitle2" fontWeight={700}>
-                        Additional Notes
-                      </Typography>
-                      <List dense disablePadding>
-                        {sortedNotes[tabIndex].additionalNotes!.map((n, i) => (
-                          <ListItem key={`an-${i}`} sx={{ py: 0.5 }}>
-                            <ListItemIcon sx={{ minWidth: 30 }}>
-                              <TextsmsIcon fontSize="small" color="action" />
-                            </ListItemIcon>
-                            <ListItemText primary={<Typography fontWeight={700}>{n.heading}</Typography>} secondary={n.description} />
-                          </ListItem>
-                        ))}
-                      </List>
-                    </Box>
-                  )}
-
-                  {/* Images */}
-                  {!!sortedNotes[tabIndex].images?.length && (
-                    <Box mt={1}>
-                      <Typography variant="subtitle2" fontWeight={700}>
-                        Attached Images
-                      </Typography>
-                      <Stack direction="row" spacing={2} flexWrap="wrap">
-                        {sortedNotes[tabIndex].images.map((img, idx) => (
-                          <Box
-                            key={`img-${idx}`}
-                            sx={{
-                              width: 110,
-                              height: 110,
-                              borderRadius: 1,
-                              overflow: "hidden",
-                              border: "1px solid",
-                              borderColor: "divider",
-                              position: "relative",
-                              cursor: "pointer",
-                            }}
-                            onClick={() => handleImageClick(img, idx)}
-                          >
-                            <img src={img} alt={`Note-${idx}`} width={110} height={110} style={{ objectFit: "cover" }} loading="lazy" />
-                            <IconButton
-                              size="small"
-                              sx={{ position: "absolute", bottom: 4, right: 4, bgcolor: "rgba(0,0,0,0.6)", color: "#fff" }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownloadImage(img, sortedNotes[tabIndex].noteDate, idx);
-                              }}
-                            >
-                              <FileDownloadIcon fontSize="small" />
-                            </IconButton>
-                          </Box>
-                        ))}
+                {sortedNotes[tabIndex] && (
+                  <Paper elevation={2} sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, bgcolor: 'grey.50' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <CalendarTodayIcon color="primary" fontSize="small" />
+                        <Typography variant="h6" fontWeight={700}>
+                          {new Date(sortedNotes[tabIndex].noteDate).toDateString()}
+                        </Typography>
                       </Stack>
-                    </Box>
-                  )}
-                </Paper>
-              )}
-            </>
-          )}
-        </Paper>
+                      <Stack direction="row" spacing={1}>
+                        <Tooltip title="Edit this note">
+                          <IconButton 
+                            color="primary" 
+                            size="small" 
+                            onClick={() => handleEditNote(tabIndex)}
+                            sx={{ bgcolor: 'primary.lighter' }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete this note">
+                          <IconButton 
+                            color="error" 
+                            size="small" 
+                            onClick={() => handleDeleteClick(tabIndex)}
+                            sx={{ bgcolor: 'error.lighter' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </Stack>
+                    <Divider sx={{ mb: 3 }} />
+
+                    <Stack spacing={2}>
+                      <NoteSection label="Chief Complaint" value={sortedNotes[tabIndex].chiefComplaint} />
+                      <NoteSection label="History" value={sortedNotes[tabIndex].history} />
+                      <NoteSection label="Medications" value={sortedNotes[tabIndex].medications} icon={<MedicationIcon />} />
+                      <NoteSection label="On Observation" value={sortedNotes[tabIndex].onObservation} />
+                      <NoteSection label="On Palpation" value={sortedNotes[tabIndex].onPalpation} />
+                      <NoteSection label="Pain Assessment (NPRS)" value={sortedNotes[tabIndex].painAssessmentNPRS} />
+                      <NoteSection label="On Examination" value={sortedNotes[tabIndex].onExamination} />
+
+                      {/* MMT */}
+                      {sortedNotes[tabIndex].mmt?.length > 0 && (
+                        <Paper sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+                          <Typography variant="subtitle1" fontWeight={700} gutterBottom color="primary">
+                            Manual Muscle Testing (MMT)
+                          </Typography>
+                          <Stack spacing={1.5}>
+                            {sortedNotes[tabIndex].mmt.map((j) => (
+                              <Box key={j.joint}>
+                                <Typography fontWeight={700} sx={{ mb: 0.5 }}>{j.joint}</Typography>
+                                <Grid container spacing={1}>
+                                  {j.right?.actions?.length > 0 && (
+                                    <Grid item xs={12} sm={6}>
+                                      <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                                        <Typography variant="caption" fontWeight={700} color="text.secondary">
+                                          RIGHT SIDE
+                                        </Typography>
+                                        <Stack spacing={0.5} mt={0.5}>
+                                          {j.right.actions.map((a, idx) => (
+                                            <Stack key={idx} direction="row" justifyContent="space-between">
+                                              <Typography variant="body2">{a.action}</Typography>
+                                              <Chip label={a.grade} size="small" color="primary" />
+                                            </Stack>
+                                          ))}
+                                        </Stack>
+                                      </Paper>
+                                    </Grid>
+                                  )}
+                                  {j.left?.actions?.length > 0 && (
+                                    <Grid item xs={12} sm={6}>
+                                      <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                                        <Typography variant="caption" fontWeight={700} color="text.secondary">
+                                          LEFT SIDE
+                                        </Typography>
+                                        <Stack spacing={0.5} mt={0.5}>
+                                          {j.left.actions.map((a, idx) => (
+                                            <Stack key={idx} direction="row" justifyContent="space-between">
+                                              <Typography variant="body2">{a.action}</Typography>
+                                              <Chip label={a.grade} size="small" color="primary" />
+                                            </Stack>
+                                          ))}
+                                        </Stack>
+                                      </Paper>
+                                    </Grid>
+                                  )}
+                                </Grid>
+                              </Box>
+                            ))}
+                          </Stack>
+                        </Paper>
+                      )}
+
+                      <NoteSection label="Treatment" value={sortedNotes[tabIndex].treatment} />
+
+                      {/* Additional Notes */}
+                      {(sortedNotes[tabIndex].additionalNotes ?? []).length > 0 && (
+                        <Paper sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+                          <Typography variant="subtitle1" fontWeight={700} gutterBottom color="primary">
+                            Additional Notes
+                          </Typography>
+                          <Stack spacing={1.5}>
+                            {sortedNotes[tabIndex].additionalNotes!.map((n, i) => (
+                              <Paper key={`an-${i}`} variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                                <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                                  <TextsmsIcon color="action" fontSize="small" />
+                                  <Box flex={1}>
+                                    <Typography fontWeight={700} gutterBottom>{n.heading}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{n.description}</Typography>
+                                  </Box>
+                                </Stack>
+                              </Paper>
+                            ))}
+                          </Stack>
+                        </Paper>
+                      )}
+
+                      {/* Images */}
+                      {!!sortedNotes[tabIndex].images?.length && (
+                        <Paper sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+                          <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+                            <ImageIcon color="primary" />
+                            <Typography variant="subtitle1" fontWeight={700} color="primary">
+                              Attached Images ({sortedNotes[tabIndex].images.length})
+                            </Typography>
+                          </Stack>
+                          <Grid container spacing={2}>
+                            {sortedNotes[tabIndex].images.map((img, idx) => (
+                              <Grid item xs={6} sm={4} md={3} key={`img-${idx}`}>
+                                <Paper
+                                  elevation={3}
+                                  sx={{
+                                    position: 'relative',
+                                    paddingTop: '100%',
+                                    borderRadius: 2,
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s',
+                                    '&:hover': {
+                                      transform: 'scale(1.05)',
+                                      boxShadow: 6
+                                    }
+                                  }}
+                                  onClick={() => handleImageClick(img, idx)}
+                                >
+                                  <Box
+                                    component="img"
+                                    src={img}
+                                    alt={`Note-${idx}`}
+                                    sx={{
+                                      position: 'absolute',
+                                      top: 0,
+                                      left: 0,
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover'
+                                    }}
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    sx={{ 
+                                      position: 'absolute', 
+                                      bottom: 8, 
+                                      right: 8, 
+                                      bgcolor: 'rgba(0,0,0,0.7)', 
+                                      color: '#fff',
+                                      '&:hover': { bgcolor: 'rgba(0,0,0,0.9)' }
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadImage(img, sortedNotes[tabIndex].noteDate, idx);
+                                    }}
+                                  >
+                                    <FileDownloadIcon fontSize="small" />
+                                  </IconButton>
+                                </Paper>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </Paper>
+                      )}
+                    </Stack>
+                  </Paper>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         // ----- EDITOR -----
-        <Paper ref={formRef} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-          <Typography variant="h6" fontWeight={700} gutterBottom>
-            {editingNoteIndex !== null ? "Edit Note" : "Add New Note"}
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-
-          <Stack spacing={2}>
-            <TextField
-              label="Note Date"
-              type="date"
-              value={noteDate}
-              onChange={(e) => setNoteDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            <Textarea label="Chief Complaint" value={chiefComplaint} onChange={setChiefComplaint} rows={2} />
-            <Textarea label="History" value={history} onChange={setHistory} rows={3} />
-            <Textarea label="Medications" value={medications} onChange={setMedications} rows={2} />
-            <Textarea label="On Observation" value={onObservation} onChange={setOnObservation} rows={3} />
-            <Textarea label="On Palpation" value={onPalpation} onChange={setOnPalpation} rows={3} />
-            <Textarea label="Pain Assessment (NPRS)" value={painAssessmentNPRS} onChange={setPainAssessmentNPRS} rows={1} />
-            <Textarea label="On Examination" value={onExamination} onChange={setOnExamination} rows={3} />
-
-            {/* MMT */}
-            <Box>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                MMT (Manual Muscle Testing)
+        <Card ref={formRef} sx={{ boxShadow: 3 }}>
+          <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={3}>
+              <EditIcon color="primary" />
+              <Typography variant="h6" fontWeight={700}>
+                {editingNoteIndex !== null ? "Edit Clinical Note" : "Add New Clinical Note"}
               </Typography>
-              {mmtActions.map((jg) => (
-                <Box key={jg.joint} sx={{ mb: 2 }}>
-                  <Typography fontWeight={700} sx={{ mb: 1 }}>
-                    {jg.joint}
+            </Stack>
+            <Divider sx={{ mb: 3 }} />
+
+            <Stack spacing={3}>
+              <TextField
+                label="Note Date"
+                type="date"
+                value={noteDate}
+                onChange={(e) => setNoteDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                variant="outlined"
+              />
+
+              <ModernTextarea label="Chief Complaint" value={chiefComplaint} onChange={setChiefComplaint} rows={2} />
+              <ModernTextarea label="History" value={history} onChange={setHistory} rows={3} />
+              <ModernTextarea label="Medications" value={medications} onChange={setMedications} rows={2} />
+              <ModernTextarea label="On Observation" value={onObservation} onChange={setOnObservation} rows={3} />
+              <ModernTextarea label="On Palpation" value={onPalpation} onChange={setOnPalpation} rows={3} />
+              <ModernTextarea label="Pain Assessment (NPRS)" value={painAssessmentNPRS} onChange={setPainAssessmentNPRS} rows={1} />
+              <ModernTextarea label="On Examination" value={onExamination} onChange={setOnExamination} rows={3} />
+
+              {/* MMT */}
+              <Paper sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" onClick={() => toggleSection('mmt')} sx={{ cursor: 'pointer', mb: expandedSections.mmt ? 2 : 0 }}>
+                  <Typography variant="h6" fontWeight={700} color="primary">
+                    Manual Muscle Testing (MMT)
                   </Typography>
-                  <Stack direction="row" flexWrap="wrap" gap={1.5}>
-                    {jg.actions.map((action) => (
-                      <Box
-                        key={action}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1,
-                          p: 1,
-                          border: "1px solid",
-                          borderColor: "divider",
-                          borderRadius: 1.5,
-                          minWidth: 240,
-                          bgcolor: "background.default",
-                        }}
-                      >
-                        <Typography sx={{ flex: 1 }}>{action}</Typography>
-                        <FormControl size="small" sx={{ width: 100 }}>
-                          <InputLabel>Left</InputLabel>
-                          <Select
-                            label="Left"
-                            value={gradesSelection[`${jg.joint}-${action}-left`] ?? ""}
-                            onChange={(e) => handleGradeChange(jg.joint, action, "left", String(e.target.value))}
-                          >
-                            {grades.map((g) => (
-                              <MenuItem key={g} value={g}>
-                                {g}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                        <FormControl size="small" sx={{ width: 100 }}>
-                          <InputLabel>Right</InputLabel>
-                          <Select
-                            label="Right"
-                            value={gradesSelection[`${jg.joint}-${action}-right`] ?? ""}
-                            onChange={(e) => handleGradeChange(jg.joint, action, "right", String(e.target.value))}
-                          >
-                            {grades.map((g) => (
-                              <MenuItem key={g} value={g}>
-                                {g}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                  <IconButton size="small">
+                    {expandedSections.mmt ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                </Stack>
+                <Collapse in={expandedSections.mmt}>
+                  <Stack spacing={3}>
+                    {mmtActions.map((jg) => (
+                      <Box key={jg.joint}>
+                        <Typography fontWeight={700} sx={{ mb: 2, color: 'primary.main' }}>
+                          {jg.joint}
+                        </Typography>
+                        <Stack spacing={1.5}>
+                          {jg.actions.map((action) => (
+                            <Paper
+                              key={action}
+                              elevation={1}
+                              sx={{
+                                p: 2,
+                                bgcolor: 'white',
+                                borderRadius: 2
+                              }}
+                            >
+                              <Grid container spacing={2} alignItems="center">
+                                <Grid item xs={12} sm={4}>
+                                  <Typography fontWeight={600}>{action}</Typography>
+                                </Grid>
+                                <Grid item xs={6} sm={4}>
+                                  <FormControl fullWidth size="small">
+                                    <InputLabel>Left</InputLabel>
+                                    <Select
+                                      label="Left"
+                                      value={gradesSelection[`${jg.joint}-${action}-left`] ?? ""}
+                                      onChange={(e) => handleGradeChange(jg.joint, action, "left", String(e.target.value))}
+                                    >
+                                      {grades.map((g) => (
+                                        <MenuItem key={g} value={g}>
+                                          {g}
+                                        </MenuItem>
+                                      ))}
+                                    </Select>
+                                  </FormControl>
+                                </Grid>
+                                <Grid item xs={6} sm={4}>
+                                  <FormControl fullWidth size="small">
+                                    <InputLabel>Right</InputLabel>
+                                    <Select
+                                      label="Right"
+                                      value={gradesSelection[`${jg.joint}-${action}-right`] ?? ""}
+                                      onChange={(e) => handleGradeChange(jg.joint, action, "right", String(e.target.value))}
+                                    >
+                                      {grades.map((g) => (
+                                        <MenuItem key={g} value={g}>
+                                          {g}
+                                        </MenuItem>
+                                      ))}
+                                    </Select>
+                                  </FormControl>
+                                </Grid>
+                              </Grid>
+                            </Paper>
+                          ))}
+                        </Stack>
                       </Box>
                     ))}
                   </Stack>
-                </Box>
-              ))}
-            </Box>
+                </Collapse>
+              </Paper>
 
-            {/* Additional notes */}
-            <Box>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Additional Notes
-              </Typography>
-              {(additionalNotes ?? []).length > 0 && (
-                <List dense disablePadding sx={{ mb: 1 }}>
-                  {additionalNotes.map((n, i) => (
-                    <ListItem
-                      key={`ad-${i}`}
-                      secondaryAction={
-                        <IconButton edge="end" onClick={() => handleDeleteAdditionalNote(i)} size="small">
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      }
-                      sx={{ py: 0.5 }}
-                    >
-                      <ListItemIcon sx={{ minWidth: 30 }}>
-                        <TextsmsIcon fontSize="small" color="action" />
-                      </ListItemIcon>
-                      <ListItemText primary={<Typography fontWeight={700}>{n.heading}</Typography>} secondary={n.description} />
-                    </ListItem>
-                  ))}
-                </List>
+              {/* Additional notes */}
+              <Paper sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Typography variant="h6" fontWeight={700} gutterBottom color="primary">
+                  Additional Notes
+                </Typography>
+                {(additionalNotes ?? []).length > 0 && (
+                  <Stack spacing={1.5} mb={2}>
+                    {additionalNotes.map((n, i) => (
+                      <Paper key={`ad-${i}`} elevation={1} sx={{ p: 2, bgcolor: 'white' }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Stack direction="row" spacing={1.5} flex={1}>
+                            <TextsmsIcon color="action" fontSize="small" />
+                            <Box flex={1}>
+                              <Typography fontWeight={700}>{n.heading}</Typography>
+                              <Typography variant="body2" color="text.secondary">{n.description}</Typography>
+                            </Box>
+                          </Stack>
+                          <IconButton edge="end" onClick={() => handleDeleteAdditionalNote(i)} size="small" color="error">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+
+                <Stack spacing={2}>
+                  <ModernTextarea placeholder="Heading" value={newNoteHeading} onChange={setNewNoteHeading} rows={1} />
+                  <ModernTextarea placeholder="Description" value={newNoteDescription} onChange={setNewNoteDescription} rows={2} />
+                  <Button
+                    variant="contained"
+                    startIcon={<AddCircleOutlineIcon />}
+                    onClick={handleAddAdditionalNote}
+                    disabled={!newNoteHeading.trim() || !newNoteDescription.trim()}
+                    fullWidth={isMobile}
+                  >
+                    Add Additional Note
+                  </Button>
+                </Stack>
+              </Paper>
+
+              <ModernTextarea label="Treatment" value={treatment} onChange={setTreatment} rows={4} />
+
+              {/* existing images */}
+              {!!existingImagesToDisplay.length && (
+                <Paper sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                  <Typography variant="h6" fontWeight={700} gutterBottom color="primary">
+                    Existing Images
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {existingImagesToDisplay.map((img, idx) => (
+                      <Grid item xs={6} sm={4} md={3} key={`ex-${idx}`}>
+                        <Paper
+                          elevation={3}
+                          sx={{
+                            position: 'relative',
+                            paddingTop: '100%',
+                            borderRadius: 2,
+                            overflow: 'hidden',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => handleImageClick(img, idx)}
+                        >
+                          <Box
+                            component="img"
+                            src={img}
+                            alt={`Existing-${idx}`}
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <IconButton
+                            size="small"
+                            sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'error.main', color: '#fff' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("Remove this image from the note?")) {
+                                setExistingImagesToDisplay((prev) => prev.filter((_, i) => i !== idx));
+                                notify("Image removed (save to confirm).", { type: "info" });
+                              }
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'rgba(0,0,0,0.7)', color: '#fff' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadImage(img, noteDate, idx);
+                            }}
+                          >
+                            <FileDownloadIcon fontSize="small" />
+                          </IconButton>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
               )}
 
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <Textarea placeholder="Heading" value={newNoteHeading} onChange={setNewNoteHeading} rows={2} />
-                <Textarea placeholder="Description" value={newNoteDescription} onChange={setNewNoteDescription} rows={3} />
-                <Button
-                  variant="contained"
-                  startIcon={<AddCircleOutlineIcon />}
-                  onClick={handleAddAdditionalNote}
-                  disabled={!newNoteHeading.trim() || !newNoteDescription.trim()}
+              {/* new images */}
+              <Paper sx={{ p: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                  Upload New Images
+                </Typography>
+                <Input
+                  type="file"
+                  inputProps={{ multiple: true, accept: "image/*" }}
+                  onChange={(e) => setImages(Array.from((e.target as HTMLInputElement).files ?? []))}
+                  fullWidth
+                />
+                {!!images.length && (
+                  <Typography variant="body2" color="primary" sx={{ mt: 1, fontWeight: 600 }}>
+                    ✓ {images.length} new image(s) selected
+                  </Typography>
+                )}
+              </Paper>
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <Button 
+                  variant="contained" 
+                  onClick={handleNoteSubmit} 
+                  disabled={loading} 
+                  fullWidth
+                  size="large"
+                  sx={{ py: 1.5 }}
                 >
-                  Add
+                  {loading ? <CircularProgress size={24} /> : (editingNoteIndex !== null ? "Update Note" : "Save Note")}
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  onClick={backToNotes} 
+                  disabled={loading} 
+                  fullWidth
+                  size="large"
+                  sx={{ py: 1.5 }}
+                >
+                  Cancel
                 </Button>
               </Stack>
-            </Box>
-
-            <Textarea label="Treatment" value={treatment} onChange={setTreatment} rows={4} />
-
-            {/* existing images */}
-            {!!existingImagesToDisplay.length && (
-              <Box>
-                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                  Existing Images
-                </Typography>
-                <Stack direction="row" spacing={2} flexWrap="wrap">
-                  {existingImagesToDisplay.map((img, idx) => (
-                    <Box
-                      key={`ex-${idx}`}
-                      sx={{
-                        position: "relative",
-                        width: 110,
-                        height: 110,
-                        border: "1px solid",
-                        borderColor: "divider",
-                        borderRadius: 1,
-                        p: 0.5,
-                        cursor: "pointer",
-                      }}
-                      onClick={() => handleImageClick(img, idx)}
-                    >
-                      <img src={img} alt={`Existing-${idx}`} width={110} height={110} style={{ objectFit: "cover" }} loading="lazy" />
-                      <IconButton
-                        size="small"
-                        sx={{ position: "absolute", top: 4, right: 4, bgcolor: "error.main", color: "#fff" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm("Remove this image from the note?")) {
-                            setExistingImagesToDisplay((prev) => prev.filter((_, i) => i !== idx));
-                            notify("Image removed (save to confirm).", { type: "info" });
-                          }
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        sx={{ position: "absolute", bottom: 4, right: 4, bgcolor: "rgba(0,0,0,0.6)", color: "#fff" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadImage(img, noteDate, idx);
-                        }}
-                      >
-                        <FileDownloadIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-
-            {/* new images */}
-            <Box>
-              <Input
-                type="file"
-                inputProps={{ multiple: true, accept: "image/*" }}
-                onChange={(e) => setImages(Array.from((e.target as HTMLInputElement).files ?? []))}
-                fullWidth
-              />
-              {!!images.length && (
-                <Typography variant="caption" color="text.secondary">
-                  {images.length} new image(s) selected
-                </Typography>
-              )}
-            </Box>
-
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-              <Button variant="contained" onClick={handleNoteSubmit} disabled={loading} fullWidth>
-                {loading ? (editingNoteIndex !== null ? "Updating..." : "Saving...") : editingNoteIndex !== null ? "Update Note" : "Save Note"}
-              </Button>
-              <Button variant="outlined" onClick={backToNotes} disabled={loading} fullWidth>
-                Cancel
-              </Button>
             </Stack>
-          </Stack>
-        </Paper>
+          </CardContent>
+        </Card>
       )}
 
       {/* Delete dialog */}
-      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
-        <DialogTitle>Confirm deletion</DialogTitle>
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm Deletion</DialogTitle>
         <DialogContent>
-          <DialogContentText>Delete this note? This cannot be undone.</DialogContentText>
+          <DialogContentText>
+            Are you sure you want to delete this clinical note? This action cannot be undone.
+          </DialogContentText>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
-          <Button onClick={handleDeleteNoteConfirm} color="error">
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenDeleteDialog(false)} variant="outlined">
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteNoteConfirm} color="error" variant="contained">
             Delete
           </Button>
         </DialogActions>
@@ -1031,82 +1247,107 @@ const PatientNotes: React.FC = () => {
 
       {/* Image dialog */}
       <Dialog open={openImageDialog} onClose={handleImageDialogClose} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography>Image</Typography>
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: 700 }}>
+          <Typography variant="h6">Image Preview</Typography>
           <IconButton onClick={handleImageDialogClose}>
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ display: "flex", justifyContent: "center" }}>
-          {selectedImage && <img src={selectedImage} alt="Note" style={{ maxWidth: "100%", height: "auto" }} />}
+        <DialogContent sx={{ display: "flex", justifyContent: "center", bgcolor: 'grey.100', p: 3 }}>
+          {selectedImage && <img src={selectedImage} alt="Note" style={{ maxWidth: "100%", height: "auto", borderRadius: 8 }} />}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           {selectedImage && (
-            <Button onClick={() => handleDownloadImage(selectedImage, noteDate, selectedImageIndex ?? 0)} startIcon={<FileDownloadIcon />}>
+            <Button 
+              onClick={() => handleDownloadImage(selectedImage, noteDate, selectedImageIndex ?? 0)} 
+              startIcon={<FileDownloadIcon />}
+              variant="outlined"
+            >
               Download
             </Button>
           )}
           {selectedImageIndex !== null && viewMode === "editor" && (
-            <Button onClick={handleDeleteExistingImage} color="error" startIcon={<DeleteIcon />}>
-              Remove from Note
+            <Button onClick={handleDeleteExistingImage} color="error" startIcon={<DeleteIcon />} variant="outlined">
+              Remove
             </Button>
           )}
-          <Button onClick={handleImageDialogClose}>Close</Button>
+          <Button onClick={handleImageDialogClose} variant="contained">Close</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Container>
   );
 };
 
-// -------- Small helpers (typed, no any) --------
-const Info: React.FC<{ label: string; value?: string | number }> = ({ label, value }) => (
-  <Typography sx={{ mr: 3 }} color={value ? "text.primary" : "text.secondary"}>
-    <Typography component="span" fontWeight={700}>
-      {label}:
-    </Typography>{" "}
-    {value ?? "N/A"}
-  </Typography>
+// -------- Helper Components --------
+const InfoCard: React.FC<{ icon: React.ReactNode; label: string; value?: string | number; fullWidth?: boolean }> = ({ 
+  icon, 
+  label, 
+  value,
+  fullWidth = false 
+}) => (
+  <Grid item xs={12} sm={fullWidth ? 12 : 6} md={fullWidth ? 12 : 4}>
+    <Paper variant="outlined" sx={{ p: 2, height: '100%', borderRadius: 2 }}>
+      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+        <Box sx={{ color: 'primary.main', mt: 0.5 }}>{icon}</Box>
+        <Box flex={1}>
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            {label}
+          </Typography>
+          <Typography variant="body1" fontWeight={600} sx={{ wordBreak: 'break-word' }}>
+            {value ?? "N/A"}
+          </Typography>
+        </Box>
+      </Stack>
+    </Paper>
+  </Grid>
 );
 
-const NoteField: React.FC<{ label: string; value?: string }> = ({ label, value }) =>
+const NoteSection: React.FC<{ label: string; value?: string; icon?: React.ReactNode }> = ({ label, value, icon }) =>
   value ? (
-    <Box sx={{ mb: 1 }}>
-      <Typography variant="subtitle2" fontWeight={700}>
-        {label}
-      </Typography>
+    <Paper sx={{ p: 2, bgcolor: 'white', borderRadius: 2 }}>
+      <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+        {icon}
+        <Typography variant="subtitle1" fontWeight={700} color="primary">
+          {label}
+        </Typography>
+      </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
         {value}
       </Typography>
-    </Box>
+    </Paper>
   ) : null;
 
-const Textarea: React.FC<{ label?: string; value: string; onChange: (v: string) => void; rows: number; placeholder?: string }> = ({
-  label,
-  value,
-  onChange,
-  rows,
-  placeholder,
-}) => (
+const ModernTextarea: React.FC<{ 
+  label?: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  rows: number; 
+  placeholder?: string 
+}> = ({ label, value, onChange, rows, placeholder }) => (
   <Box>
     {label && (
-      <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }} color="primary">
         {label}
       </Typography>
     )}
-    <TextareaAutosize
-      minRows={rows}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder ?? label ?? ""}
-      style={{
-        width: "100%",
-        padding: "10px",
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        fontSize: 16,
-        background: "#fff",
-      }}
-    />
+    <Paper variant="outlined" sx={{ p: 0, borderRadius: 2, overflow: 'hidden' }}>
+      <TextareaAutosize
+        minRows={rows}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? label ?? ""}
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          border: "none",
+          fontSize: 16,
+          background: "#fff",
+          fontFamily: 'inherit',
+          resize: 'vertical',
+          outline: 'none'
+        }}
+      />
+    </Paper>
   </Box>
 );
 

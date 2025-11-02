@@ -1,14 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Box, Card, CardContent, Typography, Divider, CircularProgress, TextField,
+  Box, Card, CardContent, Typography, CircularProgress, TextField,
   Paper, Table, TableHead, TableRow, TableCell, TableBody, MenuItem,
-  Fade, Tabs, Tab, IconButton, Tooltip, Alert, Menu
+  Fade, Tabs, Tab, IconButton, Tooltip, Alert, Menu, Chip, Stack,
+  alpha, useTheme, LinearProgress,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import PeopleIcon from "@mui/icons-material/People";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import PaymentIcon from "@mui/icons-material/Payment";
+import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import { useDataProvider, useNotify } from "react-admin";
 import { useChoices } from "@/hooks/useHooks";
+import Grid from '@mui/material/GridLegacy';
 
 // ===== Types =====
 interface PatientSummary {
@@ -21,9 +28,9 @@ interface PatientSummary {
 type StatusFilter = "all" | "active" | "closed";
 
 interface Filter {
-  day: string;               // "All" | "1"..."31"
-  month: string;             // "All" | "1"..."12"
-  year: string;              // "2025" etc.
+  day: string;
+  month: string;
+  year: string;
   q: string;
   status: StatusFilter;
   paymentType: "" | "cash" | "upi" | "card" | "bank";
@@ -69,7 +76,6 @@ const months = [
   "July","August","September","October","November","December",
 ];
 
-// Build day choices: "All", "1".."31"
 const dayChoices: string[] = ["All", ...Array.from({ length: 31 }, (_, i) => String(i + 1))];
 
 type TabKey = "overall" | "daily" | "byPaymentType" | "byDoctor";
@@ -84,12 +90,13 @@ const useDebounced = (value: string, delay = 350): string => {
 };
 
 const Dashboard: React.FC = () => {
+  const theme = useTheme();
   const dataProvider = useDataProvider();
   const notify = useNotify();
 
   const now = new Date();
-  const currentMonth = String(now.getMonth() + 1); // 1-12
-  const currentDay = String(now.getDate());        // 1-31
+  const currentMonth = String(now.getMonth() + 1);
+  const currentDay = String(now.getDate());
   const defaultYear = String(now.getFullYear());
   
   const { choices: doctorChoices } = useChoices("doctors");
@@ -113,8 +120,8 @@ const Dashboard: React.FC = () => {
     value ? (doctorMap[String(value)] ?? value) : "—";
 
   const [filter, setFilter] = useState<Filter>({
-    day: currentDay,        // default to today's day number
-    month: currentMonth,    // default current month
+    day: currentDay,
+    month: currentMonth,
     year: defaultYear,
     q: "",
     status: "all",
@@ -132,7 +139,6 @@ const Dashboard: React.FC = () => {
     return months[idx] || monthNum;
   };
 
-  // Build a pretty range string honoring day selection
   const getDateRangeString = () => {
     const showDay = filter.day !== "All";
     const showMonth = filter.month !== "All";
@@ -151,7 +157,7 @@ const Dashboard: React.FC = () => {
         const monthParam = filter.month === "All" ? "" : filter.month;
         const dayParam = filter.day === "All" ? "" : filter.day;
         const commonFilter = {
-          day: dayParam,                    // NEW: day number only
+          day: dayParam,
           month: monthParam,
           year: filter.year,
           q: debouncedQ,
@@ -366,406 +372,1072 @@ const Dashboard: React.FC = () => {
   // ===== Loading =====
   if (loading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "70vh", flexDirection: "column", gap: 2 }}>
-        <CircularProgress size={48} />
-        <Typography color="text.secondary">Loading payment data...</Typography>
+      <Box 
+        sx={{ 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center", 
+          height: "70vh", 
+          flexDirection: "column", 
+          gap: 3,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`
+        }}
+      >
+        <Box sx={{ position: "relative" }}>
+          <CircularProgress size={64} thickness={4} sx={{ color: theme.palette.primary.main }} />
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <LocalHospitalIcon sx={{ fontSize: 28, color: theme.palette.primary.main }} />
+          </Box>
+        </Box>
+        <Typography variant="h6" color="text.secondary" fontWeight={500}>
+          Loading payment data...
+        </Typography>
       </Box>
     );
   }
 
+  const collectionRate = overall.totalFee > 0 ? (overall.totalPaid / overall.totalFee) * 100 : 0;
+
   // ===== Layout =====
   return (
-    <Fade in timeout={400}>
-      <Box sx={{ p: { xs: 2, md: 4 } }}>
-        {/* Header */}
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-          <Box>
-            <Typography variant="h5" fontWeight={700}>🩺 Payment Dashboard</Typography>
-            <Typography variant="body2" color="text.secondary">{getDateRangeString()}</Typography>
-          </Box>
-          <Box>
-            <Tooltip title="Download Reports">
-              <IconButton 
-                onClick={(e) => setDownloadMenuAnchor(e.currentTarget)} 
-                color="primary" 
-                size="large"
-                sx={{ bgcolor: "primary.50", "&:hover": { bgcolor: "primary.100" } }}
-              >
-                <DownloadIcon />
-                <KeyboardArrowDownIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Menu
-              anchorEl={downloadMenuAnchor}
-              open={Boolean(downloadMenuAnchor)}
-              onClose={() => setDownloadMenuAnchor(null)}
-            >
-              <MenuItem onClick={downloadCurrentTab}>
-                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
-                  <Typography variant="body2" fontWeight={600}>Current Tab</Typography>
-                  <Typography variant="caption" color="text.secondary">Download {tab} view</Typography>
-                </Box>
-              </MenuItem>
-              <MenuItem onClick={downloadComprehensiveReport}>
-                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
-                  <Typography variant="body2" fontWeight={600}>Comprehensive Report</Typography>
-                  <Typography variant="caption" color="text.secondary">Full patient summary</Typography>
-                </Box>
-              </MenuItem>
-              <MenuItem onClick={downloadDoctorVisitReport}>
-                <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
-                  <Typography variant="body2" fontWeight={600}>Doctor Visit Report</Typography>
-                  <Typography variant="caption" color="text.secondary">Doctor statistics</Typography>
-                </Box>
-              </MenuItem>
-            </Menu>
-            <Tooltip title="Reset filters">
-              <IconButton
-                onClick={() => {
-                  setFilter({
-                    day: currentDay,
-                    month: currentMonth,
-                    year: defaultYear,
-                    q: "",
-                    status: "all",
-                    paymentType: "",
-                    visitedDoctor: "",
-                  });
-                }}
-                size="large"
-              >
-                <RestartAltIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-        <Divider sx={{ mb: 3 }} />
-
-        {/* Filter Bar */}
+    <Fade in timeout={600}>
+      <Box 
+        sx={{ 
+          p: { xs: 2, md: 4 },
+          minHeight: "100vh",
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.03)} 0%, ${alpha(theme.palette.secondary.main, 0.03)} 100%)`,
+        }}
+      >
+        {/* Glassmorphic Header */}
         <Paper
+          elevation={0}
           sx={{
-            p: 2.5,
+            p: 3,
             mb: 3,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 2,
-            borderRadius: 3,
-            alignItems: "center",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+            borderRadius: 4,
+            background: alpha("#fff", 0.8),
+            backdropFilter: "blur(20px)",
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+            boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.08)}`,
           }}
         >
-          <TextField
-            select
-            label="Day"
-            size="small"
-            value={filter.day}
-            onChange={(e) => setFilter({ ...filter, day: String(e.target.value) })}
-          >
-            {dayChoices.map((d) => (
-              <MenuItem key={d} value={d}>{d === "All" ? "All Days" : `${d}`}</MenuItem>
-            ))}
-          </TextField>
-
-            <TextField
-              select
-              label="Month"
-              size="small"
-              value={filter.month}
-              onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
-            >
-              {months.map((m, i) => (
-                <MenuItem key={m} value={i === 0 ? "All" : String(i)}>{m}</MenuItem>
-              ))}
-            </TextField>
-
-          <TextField
-            label="Year"
-            type="number"
-            size="small"
-            value={filter.year}
-            onChange={(e) => setFilter({ ...filter, year: String(e.target.value) })}
-          />
-
-          <TextField
-            select
-            label="Doctor"
-            size="small"
-            value={filter.visitedDoctor}
-            onChange={(e) => setFilter({ ...filter, visitedDoctor: String(e.target.value) })}
-          >
-            <MenuItem value="">All Doctors</MenuItem>
-            {doctorChoices.map(d => (
-              <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Patient"
-            size="small"
-            value={filter.q}
-            onChange={(e) => setFilter({ ...filter, q: String(e.target.value) })}
-          >
-            <MenuItem value="">All Patients</MenuItem>
-            {patientChoices.map(p => (
-              <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Status"
-            size="small"
-            value={filter.status}
-            onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
-          >
-            <MenuItem value="all">All Status</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="closed">Closed</MenuItem>
-          </TextField>
-
-          <TextField
-            select
-            label="Payment Type"
-            size="small"
-            value={filter.paymentType}
-            onChange={(e) =>
-              setFilter({ ...filter, paymentType: e.target.value as Filter["paymentType"] })
-            }
-          >
-            <MenuItem value="">All Types</MenuItem>
-            <MenuItem value="upi">UPI</MenuItem>
-            <MenuItem value="cash">Cash</MenuItem>
-            <MenuItem value="card">Card</MenuItem>
-            <MenuItem value="bank">Bank Transfer</MenuItem>
-          </TextField>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 3,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
+                }}
+              >
+                <LocalHospitalIcon sx={{ color: "#fff", fontSize: 32 }} />
+              </Box>
+              <Box>
+                <Typography variant="h4" fontWeight={700} sx={{ 
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}>
+                  Payment Dashboard
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
+                  <CalendarTodayIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    {getDateRangeString()}
+                  </Typography>
+                </Stack>
+              </Box>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="Download Reports" arrow>
+                <IconButton 
+                  onClick={(e) => setDownloadMenuAnchor(e.currentTarget)} 
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    "&:hover": { 
+                      bgcolor: alpha(theme.palette.primary.main, 0.2),
+                      transform: "translateY(-2px)",
+                    },
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  <DownloadIcon />
+                  <KeyboardArrowDownIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Menu
+                anchorEl={downloadMenuAnchor}
+                open={Boolean(downloadMenuAnchor)}
+                onClose={() => setDownloadMenuAnchor(null)}
+                PaperProps={{
+                  sx: {
+                    borderRadius: 2,
+                    mt: 1,
+                    boxShadow: `0 8px 24px ${alpha("#000", 0.12)}`,
+                  }
+                }}
+              >
+                <MenuItem onClick={downloadCurrentTab} sx={{ py: 1.5, px: 2 }}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>Current Tab</Typography>
+                    <Typography variant="caption" color="text.secondary">Download {tab} view</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem onClick={downloadComprehensiveReport} sx={{ py: 1.5, px: 2 }}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>Comprehensive Report</Typography>
+                    <Typography variant="caption" color="text.secondary">Full patient summary</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem onClick={downloadDoctorVisitReport} sx={{ py: 1.5, px: 2 }}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>Doctor Visit Report</Typography>
+                    <Typography variant="caption" color="text.secondary">Doctor statistics</Typography>
+                  </Box>
+                </MenuItem>
+              </Menu>
+              <Tooltip title="Reset Filters" arrow>
+                <IconButton
+                  onClick={() => {
+                    setFilter({
+                      day: currentDay,
+                      month: currentMonth,
+                      year: defaultYear,
+                      q: "",
+                      status: "all",
+                      paymentType: "",
+                      visitedDoctor: "",
+                    });
+                  }}
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                    "&:hover": { 
+                      bgcolor: alpha(theme.palette.secondary.main, 0.2),
+                      transform: "rotate(180deg)",
+                    },
+                    transition: "all 0.5s ease",
+                  }}
+                >
+                  <RestartAltIcon />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Box>
         </Paper>
 
-        {/* Active Filters Alert */}
-        {(filter.visitedDoctor || filter.q || filter.status !== "all" || filter.paymentType || filter.day !== currentDay || filter.month !== currentMonth) && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Active Filters:</strong>{" "}
-              {filter.day !== "All" && `Day: ${filter.day} · `}
-              {filter.month !== "All" && `Month: ${getMonthName(filter.month)} · `}
-              {filter.visitedDoctor && `Doctor: ${doctorLabel(filter.visitedDoctor)} · `}
-              {filter.q && `Patient: ${filter.q} · `}
-              {filter.status !== "all" && `Status: ${filter.status} · `}
-              {filter.paymentType && `Payment: ${filter.paymentType.toUpperCase()}`}
-            </Typography>
-          </Alert>
-        )}
-
-        {/* Tabs */}
-        <Tabs value={tab} onChange={(_, v: TabKey) => setTab(v)} sx={{ mb: 3 }}>
-          <Tab label="By Patient" value="overall" />
-          <Tab label="By Day" value="daily" />
-          <Tab label="By Payment Type" value="byPaymentType" />
-          <Tab label="By Doctor" value="byDoctor" />
-        </Tabs>
-
-        {/* KPI Cards */}
-        {tab === "overall" && (
+        {/* Filter Panel */}
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 4,
+            background: alpha("#fff", 0.7),
+            backdropFilter: "blur(10px)",
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          }}
+        >
+          <Typography variant="subtitle2" fontWeight={600} mb={2} color="text.secondary">
+            FILTERS
+          </Typography>
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, 1fr)",
+                md: "repeat(3, 1fr)",
+                lg: "repeat(7, 1fr)",
+              },
               gap: 2,
-              mb: 3,
             }}
           >
-            {[
-              { label: "Total Fee", value: fmt(overall.totalFee), color: "#2196f3", bg: "#e3f2fd" },
-              { label: "Total Paid", value: fmt(overall.totalPaid), color: "#4caf50", bg: "#e8f5e9" },
-              { label: "Total Due", value: fmt(overall.totalDue), color: "#ff9800", bg: "#fff3e0" },
-              { label: "Total Visits", value: fmt(overall.totalVisits), color: "#9c27b0", bg: "#f3e5f5" },
-            ].map((kpi) => (
-              <Card
-                key={kpi.label}
-                sx={{
-                  bgcolor: kpi.bg,
-                  borderLeft: `5px solid ${kpi.color}`,
-                  borderRadius: 3,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-                }}
+            <TextField
+                select
+                label="Day"
+                size="small"
+                fullWidth
+                value={filter.day}
+                onChange={(e) => setFilter({ ...filter, day: String(e.target.value) })}
+                sx={{ bgcolor: "#fff" }}
               >
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    {kpi.label}
-                  </Typography>
-                  <Typography variant="h4" sx={{ color: kpi.color, fontWeight: 700 }}>
-                    {kpi.value}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
+                {dayChoices.map((d) => (
+                  <MenuItem key={d} value={d}>{d === "All" ? "All Days" : `Day ${d}`}</MenuItem>
+                ))}
+              </TextField>
+            
+            <TextField
+                select
+                label="Month"
+                size="small"
+                fullWidth
+                value={filter.month}
+                onChange={(e) => setFilter({ ...filter, month: String(e.target.value) })}
+                sx={{ bgcolor: "#fff" }}
+              >
+                {months.map((m, i) => (
+                  <MenuItem key={m} value={i === 0 ? "All" : String(i)}>{m}</MenuItem>
+                ))}
+              </TextField>
+
+            <TextField
+                label="Year"
+                type="number"
+                size="small"
+                fullWidth
+                value={filter.year}
+                onChange={(e) => setFilter({ ...filter, year: String(e.target.value) })}
+                sx={{ bgcolor: "#fff" }}
+              />
+            </Box>
+            <Grid item xs={12} sm={6} md={3} lg={1.7}>
+              <TextField
+                select
+                label="Doctor"
+                size="small"
+                fullWidth
+                value={filter.visitedDoctor}
+                onChange={(e) => setFilter({ ...filter, visitedDoctor: String(e.target.value) })}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="">All Doctors</MenuItem>
+                {doctorChoices.map(d => (
+                  <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                ))}
+              </TextField>
+
+            <TextField
+                select
+                label="Patient"
+                size="small"
+                fullWidth
+                value={filter.q}
+                onChange={(e) => setFilter({ ...filter, q: String(e.target.value) })}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="">All Patients</MenuItem>
+                {patientChoices.map(p => (
+                  <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
+                ))}
+              </TextField>
+
+            <TextField
+                select
+                label="Status"
+                size="small"
+                fullWidth
+                value={filter.status}
+                onChange={(e) => setFilter({ ...filter, status: e.target.value as StatusFilter })}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="closed">Closed</MenuItem>
+              </TextField>
+
+            <TextField
+                select
+                label="Payment Type"
+                size="small"
+                fullWidth
+                value={filter.paymentType}
+                onChange={(e) => setFilter({ ...filter, paymentType: e.target.value as Filter["paymentType"] })}
+                sx={{ bgcolor: "#fff" }}
+              >
+                <MenuItem value="">All Types</MenuItem>
+                <MenuItem value="upi">UPI</MenuItem>
+                <MenuItem value="cash">Cash</MenuItem>
+                <MenuItem value="card">Card</MenuItem>
+                <MenuItem value="bank">Bank Transfer</MenuItem>
+              </TextField>
+            </Grid>
+            
+          </Paper>
+
+        {/* Active Filters Alert */}
+        {(filter.visitedDoctor || filter.q || filter.status !== "all" || filter.paymentType || filter.day !== currentDay || filter.month !== currentMonth) && (
+          <Fade in>
+            <Alert 
+              severity="info" 
+              sx={{ 
+                mb: 3, 
+                borderRadius: 3,
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                bgcolor: alpha(theme.palette.info.main, 0.05),
+              }}
+            >
+              <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center">
+                <Typography variant="body2" fontWeight={600}>Active Filters:</Typography>
+                {filter.day !== "All" && <Chip label={`Day: ${filter.day}`} size="small" color="info" variant="outlined" />}
+                {filter.month !== "All" && <Chip label={`${getMonthName(filter.month)}`} size="small" color="info" variant="outlined" />}
+                {filter.visitedDoctor && <Chip label={`Doctor: ${doctorLabel(filter.visitedDoctor)}`} size="small" color="info" variant="outlined" />}
+                {filter.q && <Chip label={`Patient: ${filter.q}`} size="small" color="info" variant="outlined" />}
+                {filter.status !== "all" && <Chip label={`Status: ${filter.status}`} size="small" color="info" variant="outlined" />}
+                {filter.paymentType && <Chip label={`${filter.paymentType.toUpperCase()}`} size="small" color="info" variant="outlined" />}
+              </Stack>
+            </Alert>
+          </Fade>
         )}
 
+        {/* KPI Cards */}
+        {tab === "overall" && (
+          <Fade in timeout={800}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  lg: "repeat(4, 1fr)",
+                },
+                gap: 3,
+                mb: 3,
+              }}
+            >
+              {[
+                { 
+                  label: "Total Revenue", 
+                  value: fmt(overall.totalFee), 
+                  icon: TrendingUpIcon,
+                  color: "#6366f1", 
+                  bg: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  lightBg: alpha("#6366f1", 0.1),
+                },
+                { 
+                  label: "Total Collected", 
+                  value: fmt(overall.totalPaid), 
+                  icon: PaymentIcon,
+                  color: "#10b981", 
+                  bg: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  lightBg: alpha("#10b981", 0.1),
+                },
+                { 
+                  label: "Outstanding Due", 
+                  value: fmt(overall.totalDue), 
+                  icon: PaymentIcon,
+                  color: "#f59e0b", 
+                  bg: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                  lightBg: alpha("#f59e0b", 0.1),
+                },
+                { 
+                  label: "Total Visits", 
+                  value: fmt(overall.totalVisits), 
+                  icon: PeopleIcon,
+                  color: "#ec4899", 
+                  bg: "linear-gradient(135deg, #ec4899 0%, #db2777 100%)",
+                  lightBg: alpha("#ec4899", 0.1),
+                },
+              ].map((kpi, index) => (
+                <Grid item xs={12} sm={6} lg={3} key={kpi.label}>
+                  <Fade in timeout={800 + index * 100}>
+                    <Card
+                      sx={{
+                        position: "relative",
+                        overflow: "hidden",
+                        borderRadius: 4,
+                        border: `1px solid ${alpha(kpi.color, 0.2)}`,
+                        bgcolor: alpha("#fff", 0.9),
+                        backdropFilter: "blur(10px)",
+                        boxShadow: `0 4px 20px ${alpha(kpi.color, 0.15)}`,
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          transform: "translateY(-8px)",
+                          boxShadow: `0 12px 40px ${alpha(kpi.color, 0.25)}`,
+                        },
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: -20,
+                          right: -20,
+                          width: 100,
+                          height: 100,
+                          borderRadius: "50%",
+                          background: kpi.lightBg,
+                          opacity: 0.5,
+                        }}
+                      />
+                      <CardContent sx={{ position: "relative", zIndex: 1 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                          <Box
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              borderRadius: 2.5,
+                              background: kpi.bg,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxShadow: `0 4px 12px ${alpha(kpi.color, 0.3)}`,
+                            }}
+                          >
+                            <kpi.icon sx={{ color: "#fff", fontSize: 24 }} />
+                          </Box>
+                          <Box
+                            sx={{
+                              bgcolor: kpi.lightBg,
+                              px: 1.5,
+                              py: 0.5,
+                              borderRadius: 2,
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ color: kpi.color, fontWeight: 700 }}>
+                              {index === 0 ? "TOTAL" : index === 1 ? "PAID" : index === 2 ? "DUE" : "COUNT"}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" fontWeight={500} mb={1}>
+                          {kpi.label}
+                        </Typography>
+                        <Typography variant="h4" sx={{ color: kpi.color, fontWeight: 800, mb: 1 }}>
+                          ₹{kpi.value}
+                        </Typography>
+                        {index === 1 && (
+                          <Box>
+                            <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                              <Typography variant="caption" color="text.secondary">
+                                Collection Rate
+                              </Typography>
+                              <Typography variant="caption" fontWeight={700} sx={{ color: kpi.color }}>
+                                {collectionRate.toFixed(1)}%
+                              </Typography>
+                            </Stack>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={collectionRate} 
+                              sx={{
+                                height: 6,
+                                borderRadius: 3,
+                                bgcolor: alpha(kpi.color, 0.1),
+                                "& .MuiLinearProgress-bar": {
+                                  background: kpi.bg,
+                                  borderRadius: 3,
+                                }
+                              }}
+                            />
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Fade>
+                </Grid>
+              ))}
+            </Box>
+          </Fade>
+        )}
+
+        {/* Tabs */}
+        <Paper
+          elevation={0}
+          sx={{
+            mb: 3,
+            borderRadius: 4,
+            overflow: "hidden",
+            background: alpha("#fff", 0.7),
+            backdropFilter: "blur(10px)",
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          }}
+        >
+          <Tabs 
+            value={tab} 
+            onChange={(_, v: TabKey) => setTab(v)}
+            sx={{
+              "& .MuiTab-root": {
+                py: 2.5,
+                textTransform: "none",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                minHeight: 64,
+                transition: "all 0.3s ease",
+              },
+              "& .Mui-selected": {
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+              },
+              "& .MuiTabs-indicator": {
+                height: 3,
+                borderRadius: "3px 3px 0 0",
+                background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              },
+            }}
+          >
+            <Tab 
+              icon={<PeopleIcon />} 
+              iconPosition="start" 
+              label="By Patient" 
+              value="overall" 
+            />
+            <Tab 
+              icon={<CalendarTodayIcon />} 
+              iconPosition="start" 
+              label="By Day" 
+              value="daily" 
+            />
+            <Tab 
+              icon={<PaymentIcon />} 
+              iconPosition="start" 
+              label="By Payment Type" 
+              value="byPaymentType" 
+            />
+            <Tab 
+              icon={<LocalHospitalIcon />} 
+              iconPosition="start" 
+              label="By Doctor" 
+              value="byDoctor" 
+            />
+          </Tabs>
+        </Paper>
+
         {/* Content */}
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 3, 
+            borderRadius: 4,
+            background: alpha("#fff", 0.9),
+            backdropFilter: "blur(20px)",
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            boxShadow: `0 8px 32px ${alpha("#000", 0.04)}`,
+          }}
+        >
           {tab === "overall" && (
-            <>
-              <Typography variant="h6" gutterBottom>👩‍⚕️ Patient Payment Summary</Typography>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
-                    <TableCell>Patient</TableCell>
-                    <TableCell align="right">Visits</TableCell>
-                    <TableCell align="right" sx={{ color: "success.main" }}>Paid</TableCell>
-                    <TableCell align="right" sx={{ color: "warning.main" }}>Due</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {rowsPatients.length ? (
-                    rowsPatients.map((r) => (
-                      <TableRow key={r.id} hover>
-                        <TableCell>{r.name}</TableCell>
-                        <TableCell align="right">{fmt(r.totalVisits)}</TableCell>
-                        <TableCell align="right" sx={{ color: "success.main" }}>
-                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-                        >
-                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-                        </TableCell>
+            <Fade in timeout={400}>
+              <Box>
+                <Stack direction="row" alignItems="center" gap={1.5} mb={3}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PeopleIcon sx={{ color: "#fff", fontSize: 20 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={700}>Patient Payment Summary</Typography>
+                  <Chip 
+                    label={`${rowsPatients.length} patients`} 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      fontWeight: 600,
+                    }} 
+                  />
+                </Stack>
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ 
+                        "& th": { 
+                          bgcolor: alpha(theme.palette.primary.main, 0.05),
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          py: 2,
+                          borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        } 
+                      }}>
+                        <TableCell>Patient Name</TableCell>
+                        <TableCell align="right">Total Visits</TableCell>
+                        <TableCell align="right">Amount Paid</TableCell>
+                        <TableCell align="right">Amount Due</TableCell>
+                        <TableCell align="right">Payment %</TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        No records found for selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </>
+                    </TableHead>
+                    <TableBody>
+                      {rowsPatients.length ? (
+                        rowsPatients.map((r) => {
+                          const totalFee = r.totalPaid + r.totalDue;
+                          const paymentPercent = totalFee > 0 ? (r.totalPaid / totalFee) * 100 : 0;
+                          return (
+                            <TableRow 
+                              key={r.id} 
+                              sx={{
+                                "&:hover": { 
+                                  bgcolor: alpha(theme.palette.primary.main, 0.03),
+                                  transform: "scale(1.01)",
+                                },
+                                transition: "all 0.2s ease",
+                                cursor: "pointer",
+                              }}
+                            >
+                              <TableCell>
+                                <Stack direction="row" alignItems="center" gap={1.5}>
+                                  <Box
+                                    sx={{
+                                      width: 36,
+                                      height: 36,
+                                      borderRadius: 2,
+                                      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)} 0%, ${alpha(theme.palette.secondary.main, 0.2)} 100%)`,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontWeight: 700,
+                                      color: theme.palette.primary.main,
+                                      fontSize: "0.85rem",
+                                    }}
+                                  >
+                                    {r.name.charAt(0).toUpperCase()}
+                                  </Box>
+                                  <Typography variant="body2" fontWeight={600}>
+                                    {r.name}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Chip 
+                                  label={fmt(r.totalVisits)} 
+                                  size="small" 
+                                  sx={{ 
+                                    bgcolor: alpha("#6366f1", 0.1),
+                                    color: "#6366f1",
+                                    fontWeight: 600,
+                                  }} 
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" fontWeight={600} sx={{ color: "#10b981" }}>
+                                  {r.totalPaid > 0 ? `₹${fmt(r.totalPaid)}` : "—"}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography 
+                                  variant="body2" 
+                                  fontWeight={600} 
+                                  sx={{ color: r.totalDue > 0 ? "#f59e0b" : "text.secondary" }}
+                                >
+                                  {r.totalDue > 0 ? `₹${fmt(r.totalDue)}` : "—"}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">
+                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                                  <Box sx={{ width: 60 }}>
+                                    <LinearProgress 
+                                      variant="determinate" 
+                                      value={paymentPercent} 
+                                      sx={{
+                                        height: 6,
+                                        borderRadius: 3,
+                                        bgcolor: alpha("#10b981", 0.1),
+                                        "& .MuiLinearProgress-bar": {
+                                          background: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+                                          borderRadius: 3,
+                                        }
+                                      }}
+                                    />
+                                  </Box>
+                                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ minWidth: 40 }}>
+                                    {paymentPercent.toFixed(0)}%
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                            <PeopleIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
+                            <Typography color="text.secondary" variant="body2">
+                              No patient records found for selected filters.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+            </Fade>
           )}
 
           {tab === "daily" && (
-            <>
-              <Typography variant="h6" gutterBottom>📅 Daily Summary</Typography>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
-                    <TableCell>Date</TableCell>
-                    <TableCell align="right">Visits</TableCell>
-                    <TableCell align="right" sx={{ color: "success.main" }}>Paid</TableCell>
-                    <TableCell align="right" sx={{ color: "warning.main" }}>Due</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {rowsDaily.length ? (
-                    rowsDaily.map((r) => (
-                      <TableRow key={r.id} hover>
-                        <TableCell>{new Date(r.date).toLocaleDateString()}</TableCell>
-                        <TableCell align="right">{fmt(r.visits)}</TableCell>
-                        <TableCell align="right" sx={{ color: "success.main" }}>
-                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-                        >
-                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-                        </TableCell>
+            <Fade in timeout={400}>
+              <Box>
+                <Stack direction="row" alignItems="center" gap={1.5} mb={3}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <CalendarTodayIcon sx={{ color: "#fff", fontSize: 20 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={700}>Daily Payment Summary</Typography>
+                  <Chip 
+                    label={`${rowsDaily.length} days`} 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: alpha(theme.palette.info.main, 0.1),
+                      color: theme.palette.info.main,
+                      fontWeight: 600,
+                    }} 
+                  />
+                </Stack>
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ 
+                        "& th": { 
+                          bgcolor: alpha(theme.palette.info.main, 0.05),
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          py: 2,
+                          borderBottom: `2px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                        } 
+                      }}>
+                        <TableCell>Date</TableCell>
+                        <TableCell align="right">Visits</TableCell>
+                        <TableCell align="right">Total Fee</TableCell>
+                        <TableCell align="right">Amount Paid</TableCell>
+                        <TableCell align="right">Amount Due</TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        No daily records for selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </>
+                    </TableHead>
+                    <TableBody>
+                      {rowsDaily.length ? (
+                        rowsDaily.map((r) => (
+                          <TableRow 
+                            key={r.id}
+                            sx={{
+                              "&:hover": { 
+                                bgcolor: alpha(theme.palette.info.main, 0.03),
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <TableCell>
+                              <Typography variant="body2" fontWeight={600}>
+                                {new Date(r.date).toLocaleDateString("en-IN", { 
+                                  day: "numeric", 
+                                  month: "short", 
+                                  year: "numeric" 
+                                })}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Chip 
+                                label={fmt(r.visits)} 
+                                size="small" 
+                                sx={{ 
+                                  bgcolor: alpha("#6366f1", 0.1),
+                                  color: "#6366f1",
+                                  fontWeight: 600,
+                                }} 
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600}>
+                                ₹{fmt(r.totalFee)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600} sx={{ color: "#10b981" }}>
+                                {r.totalPaid > 0 ? `₹${fmt(r.totalPaid)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography 
+                                variant="body2" 
+                                fontWeight={600} 
+                                sx={{ color: r.totalDue > 0 ? "#f59e0b" : "text.secondary" }}
+                              >
+                                {r.totalDue > 0 ? `₹${fmt(r.totalDue)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                            <CalendarTodayIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
+                            <Typography color="text.secondary" variant="body2">
+                              No daily records for selected filters.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+            </Fade>
           )}
 
           {tab === "byPaymentType" && (
-            <>
-              <Typography variant="h6" gutterBottom>💳 Payment Type Summary</Typography>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
-                    <TableCell>Payment Type</TableCell>
-                    <TableCell align="right">Count</TableCell>
-                    <TableCell align="right" sx={{ color: "success.main" }}>Paid</TableCell>
-                    <TableCell align="right" sx={{ color: "warning.main" }}>Due</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {rowsByPaymentType.length ? (
-                    rowsByPaymentType.map((r) => (
-                      <TableRow key={r.id} hover>
-                        <TableCell>{r.paymentType || "—"}</TableCell>
-                        <TableCell align="right">{fmt(r.count)}</TableCell>
-                        <TableCell align="right" sx={{ color: "success.main" }}>
-                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-                        >
-                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-                        </TableCell>
+            <Fade in timeout={400}>
+              <Box>
+                <Stack direction="row" alignItems="center" gap={1.5} mb={3}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PaymentIcon sx={{ color: "#fff", fontSize: 20 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={700}>Payment Type Summary</Typography>
+                  <Chip 
+                    label={`${rowsByPaymentType.length} types`} 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: alpha(theme.palette.success.main, 0.1),
+                      color: theme.palette.success.main,
+                      fontWeight: 600,
+                    }} 
+                  />
+                </Stack>
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ 
+                        "& th": { 
+                          bgcolor: alpha(theme.palette.success.main, 0.05),
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          py: 2,
+                          borderBottom: `2px solid ${alpha(theme.palette.success.main, 0.1)}`,
+                        } 
+                      }}>
+                        <TableCell>Payment Type</TableCell>
+                        <TableCell align="right">Transaction Count</TableCell>
+                        <TableCell align="right">Total Fee</TableCell>
+                        <TableCell align="right">Amount Paid</TableCell>
+                        <TableCell align="right">Amount Due</TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        No payment-type records for selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </>
+                    </TableHead>
+                    <TableBody>
+                      {rowsByPaymentType.length ? (
+                        rowsByPaymentType.map((r) => (
+                          <TableRow 
+                            key={r.id}
+                            sx={{
+                              "&:hover": { 
+                                bgcolor: alpha(theme.palette.success.main, 0.03),
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <TableCell>
+                              <Chip 
+                                label={r.paymentType || "Not Specified"} 
+                                size="small"
+                                sx={{ 
+                                  fontWeight: 600,
+                                  textTransform: "uppercase",
+                                  bgcolor: alpha(theme.palette.success.main, 0.1),
+                                  color: theme.palette.success.dark,
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Chip 
+                                label={fmt(r.count)} 
+                                size="small" 
+                                sx={{ 
+                                  bgcolor: alpha("#6366f1", 0.1),
+                                  color: "#6366f1",
+                                  fontWeight: 600,
+                                }} 
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600}>
+                                ₹{fmt(r.totalFee)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600} sx={{ color: "#10b981" }}>
+                                {r.totalPaid > 0 ? `₹${fmt(r.totalPaid)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography 
+                                variant="body2" 
+                                fontWeight={600} 
+                                sx={{ color: r.totalDue > 0 ? "#f59e0b" : "text.secondary" }}
+                              >
+                                {r.totalDue > 0 ? `₹${fmt(r.totalDue)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                            <PaymentIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
+                            <Typography color="text.secondary" variant="body2">
+                              No payment type records for selected filters.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+            </Fade>
           )}
 
           {tab === "byDoctor" && (
-            <>
-              <Typography variant="h6" gutterBottom>🩺 Doctor Visit Summary</Typography>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { bgcolor: "#fafafa", fontWeight: 600 } }}>
-                    <TableCell>Doctor</TableCell>
-                    <TableCell align="right">Visit Count</TableCell>
-                    <TableCell align="right" sx={{ color: "success.main" }}>Paid</TableCell>
-                    <TableCell align="right" sx={{ color: "warning.main" }}>Due</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {rowsByDoctor.length ? (
-                    rowsByDoctor.map((r) => (
-                      <TableRow key={r.id} hover>
-                        <TableCell>{doctorLabel(r.visitedDoctor)}</TableCell>
-                        <TableCell align="right">{fmt(r.count)}</TableCell>
-                        <TableCell align="right" sx={{ color: "success.main" }}>
-                          {r.totalPaid > 0 ? fmt(r.totalPaid) : "—"}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ color: r.totalDue > 0 ? "warning.main" : "text.secondary" }}
-                        >
-                          {r.totalDue > 0 ? fmt(r.totalDue) : "—"}
-                        </TableCell>
+            <Fade in timeout={400}>
+              <Box>
+                <Stack direction="row" alignItems="center" gap={1.5} mb={3}>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <LocalHospitalIcon sx={{ color: "#fff", fontSize: 20 }} />
+                  </Box>
+                  <Typography variant="h6" fontWeight={700}>Doctor Visit Summary</Typography>
+                  <Chip 
+                    label={`${rowsByDoctor.length} doctors`} 
+                    size="small" 
+                    sx={{ 
+                      bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                      color: theme.palette.secondary.main,
+                      fontWeight: 600,
+                    }} 
+                  />
+                </Stack>
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ 
+                        "& th": { 
+                          bgcolor: alpha(theme.palette.secondary.main, 0.05),
+                          fontWeight: 700,
+                          fontSize: "0.8rem",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          py: 2,
+                          borderBottom: `2px solid ${alpha(theme.palette.secondary.main, 0.1)}`,
+                        } 
+                      }}>
+                        <TableCell>Doctor Name</TableCell>
+                        <TableCell align="right">Visit Count</TableCell>
+                        <TableCell align="right">Total Fee</TableCell>
+                        <TableCell align="right">Amount Paid</TableCell>
+                        <TableCell align="right">Amount Due</TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        No doctor records for selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </>
+                    </TableHead>
+                    <TableBody>
+                      {rowsByDoctor.length ? (
+                        rowsByDoctor.map((r) => (
+                          <TableRow 
+                            key={r.id}
+                            sx={{
+                              "&:hover": { 
+                                bgcolor: alpha(theme.palette.secondary.main, 0.03),
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <TableCell>
+                              <Stack direction="row" alignItems="center" gap={1.5}>
+                                <Box
+                                  sx={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 2,
+                                    background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.2)} 0%, ${alpha(theme.palette.secondary.dark, 0.2)} 100%)`,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <LocalHospitalIcon sx={{ fontSize: 18, color: theme.palette.secondary.main }} />
+                                </Box>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {doctorLabel(r.visitedDoctor)}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Chip 
+                                label={fmt(r.count)} 
+                                size="small" 
+                                sx={{ 
+                                  bgcolor: alpha("#6366f1", 0.1),
+                                  color: "#6366f1",
+                                  fontWeight: 600,
+                                }} 
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600}>
+                                ₹{fmt(r.totalFee)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="body2" fontWeight={600} sx={{ color: "#10b981" }}>
+                                {r.totalPaid > 0 ? `₹${fmt(r.totalPaid)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography 
+                                variant="body2" 
+                                fontWeight={600} 
+                                sx={{ color: r.totalDue > 0 ? "#f59e0b" : "text.secondary" }}
+                              >
+                                {r.totalDue > 0 ? `₹${fmt(r.totalDue)}` : "—"}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                            <LocalHospitalIcon sx={{ fontSize: 48, color: "text.disabled", mb: 2 }} />
+                            <Typography color="text.secondary" variant="body2">
+                              No doctor records for selected filters.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+            </Fade>
           )}
         </Paper>
       </Box>
