@@ -20,10 +20,11 @@ import {
   Visibility,
   VisibilityOff,
   Lock as LockIcon,
-  LocalHospital as HospitalIcon,
   Person,
 } from '@mui/icons-material';
+import Image from 'next/image';
 
+const logoUrl = "/medivueLogo.jpeg";
 const CustomLoginPage = () => {
   const [username, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,7 +51,7 @@ const CustomLoginPage = () => {
       sx={{
         minHeight: '100vh',
         display: 'flex',
-        background: 'linear-gradient(135deg, #16669f 0%, #2c7fb8 100%)',
+        background: '#16669f',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -91,15 +92,20 @@ const CustomLoginPage = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #16669f 0%, #2c7fb8 100%)',
+                  // background: 'linear-gradient(135deg, #16669f 0%, #2c7fb8 100%)',
                   boxShadow: '0 8px 24px rgba(22, 102, 159, 0.25)',
                 }}
               >
-                <HospitalIcon sx={{ fontSize: 36, color: 'white' }} />
+                  <Image
+          src={logoUrl}
+          alt="Medivue Logo"
+          width={150}
+          height={150}
+        />
               </Paper>
               <Box textAlign="center">
                 <Typography variant="h5" fontWeight={600} gutterBottom color="text.primary">
-                  Medivue Health
+                  Medivue Health and Wellness
                 </Typography>
                 <Typography variant="body2" color="text.secondary" fontWeight={400}>
                   Sign in to access your dashboard
