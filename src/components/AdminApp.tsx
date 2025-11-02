@@ -36,6 +36,7 @@ import {
 } from "./Job";
 import Dashboard from "./Dashboard";
 import ExpenseTracker from "./Expense/List";
+import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
 
 const AdminApp = () => {
   return (
@@ -45,6 +46,7 @@ const AdminApp = () => {
       authProvider={customAuthProvider}
       loginPage={CustomLoginPage}
       theme={theme}
+      dashboard={ClinicAnalyticsDashboard}
       defaultTheme="light"
     >
       {(permissions) => {
@@ -56,6 +58,8 @@ const AdminApp = () => {
             {/* ✅ Admin-only resources and dashboard */}
             {isAdmin && (
               <>
+                              <Resource name="expenses" list={ExpenseTracker} />
+
                 <Resource
                   name="dashboard"
                   options={{ label: "Payment History" }}
