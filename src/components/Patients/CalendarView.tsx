@@ -91,6 +91,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
   const [showMonthSummary, setShowMonthSummary] = useState(false);
   const [showOverallSummary, setShowOverallSummary] = useState(false);
 
+  // NEW: standalone Un-visit date state
+  const [unvisitDate, setUnvisitDate] = useState<string>("");
+
   useEffect(() => {
     const role = localStorage.getItem("role");
     const docId = localStorage.getItem("linkedDoctorId");
@@ -191,7 +194,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     [activeStartDate]
   );
 
-  // Calculate summaries
   const monthSummary = useMemo(() => {
     const totalFee = monthKeys.reduce((acc, k) => acc + (payments[k]?.fee ?? 0), 0);
     const totalPaid = monthKeys.reduce((acc, k) => acc + (payments[k]?.paid ?? 0), 0);
@@ -305,8 +307,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
     if (!selectedDate) return;
     const key = dayKeyUTC(selectedDate);
 
-    if (!hasVisit(key)) {
-      notify("No visit marked for this date.", { type: "info" });
+    if (!hasAnyActivity(key)) {
+      notify("No visit or payment found for this date.", { type: "info" });
       return;
     }
 
@@ -320,11 +322,48 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
         delete c[key];
         return c;
       });
-      notify("Unmarked visit & removed payment", { type: "success" });
+      notify("Un-visited & removed payment", { type: "success" });
       setSelectedDate(null);
       refresh();
     } catch {
-      notify("Failed to unmark visit", { type: "warning" });
+      notify("Failed to un-visit", { type: "warning" });
+    }
+  };
+
+  // NEW: Un-visit by date (without opening the editor)
+  const handleUnvisitByDate = async () => {
+    if (!unvisitDate) {
+      notify("Please select a date to un-visit.", { type: "warning" });
+      return;
+    }
+    const date = new Date(`${unvisitDate}T00:00:00`);
+    const key = dayKeyUTC(date);
+
+    if (!hasAnyActivity(key)) {
+      notify("No visit or payment found for the selected date.", { type: "info" });
+      return;
+    }
+
+    try {
+      await dataProvider.create(`patients/${patientId}/unmark-visit`, {
+        data: { visitDate: key },
+      });
+
+      setVisitedKeys((prev) => prev.filter((k) => k !== key));
+      setPayments((p) => {
+        const c = { ...p };
+        delete c[key];
+        return c;
+      });
+
+      if (selectedDate && dayKeyUTC(selectedDate) === key) {
+        setSelectedDate(null);
+      }
+
+      notify("Un-visited & removed payment for the selected date.", { type: "success" });
+      refresh();
+    } catch {
+      notify("Failed to un-visit the selected date.", { type: "warning" });
     }
   };
 
@@ -597,7 +636,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
                       inputProps={{ min: 0 }}
                       sx={{ bgcolor: "#fff" }}
                       InputProps={{
-                        startAdornment: <Typography sx={{ mr: 1, color: "text.secondary" }}>₹</Typography>,
+                        startAdornment: (
+                          <Typography sx={{ mr: 1, color: "text.secondary" }}>₹</Typography>
+                        ),
                       }}
                     />
 
@@ -680,7 +721,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
                     >
                       {hasVisit(dayKeyUTC(selectedDate)) ? "Update Payment" : "Save Visit"}
                     </Button>
-                    {hasVisit(dayKeyUTC(selectedDate)) && (
+
+                    {/** CHANGED: show Un-visit button when there is any activity (visit or payment) */}
+                    {hasAnyActivity(dayKeyUTC(selectedDate)) && (
                       <Button
                         variant="outlined"
                         size="large"
@@ -696,7 +739,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
                           },
                         }}
                       >
-                        Delete Visit
+                        Un-visit
                       </Button>
                     )}
                   </Stack>
@@ -1016,6 +1059,67 @@ const CalendarView: React.FC<CalendarViewProps> = ({ patientId }) => {
                 </Card>
               ))}
             </Box>
+
+            {/* NEW: Un-visit by Date (Global) */}
+            <Paper
+              elevation={0}
+              sx={{
+                p: 3,
+                borderRadius: 4,
+                background: alpha("#fff", 0.9),
+                backdropFilter: "blur(10px)",
+                border: `1px solid ${alpha(theme.palette.error.main, 0.15)}`,
+              }}
+            >
+              <Stack direction="row" alignItems="center" gap={1.5} mb={2}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    background: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <CancelIcon sx={{ color: "#fff", fontSize: 20 }} />
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Un-visit by Date
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Remove visit & payment for a specific date
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr auto" }, gap: 1.5 }}>
+                <TextField
+                  type="date"
+                  label="Select Date"
+                  size="small"
+                  value={unvisitDate}
+                  onChange={(e) => setUnvisitDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ bgcolor: "#fff" }}
+                />
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleUnvisitByDate}
+                  sx={{
+                    borderWidth: 2,
+                    "&:hover": { borderWidth: 2, bgcolor: alpha(theme.palette.error.main, 0.05) },
+                    height: 40,
+                  }}
+                >
+                  Un-visit
+                </Button>
+              </Box>
+            </Paper>
           </Stack>
         </Box>
       </Box>

@@ -11,6 +11,7 @@ const EXPENSE_TYPES = [
   { value: "supplies", label: "📦 Medical Supplies" },
   { value: "equipment", label: "⚕️ Equipment" },
   { value: "marketing", label: "📢 Marketing" },
+  {value : "purchase" , label : "💵 Purchase"},
   { value: "other", label: "📝 Other" },
 ];
 

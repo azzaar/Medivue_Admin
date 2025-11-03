@@ -36,7 +36,7 @@ import {
 } from "./Job";
 import Dashboard from "./Dashboard";
 import ExpenseTracker from "./Expense/List";
-// import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
+import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
 
 const AdminApp = () => {
   return (
@@ -59,7 +59,12 @@ const AdminApp = () => {
             {isAdmin && (
               <>
                               <Resource name="expenses" list={ExpenseTracker} />
-
+ <CustomRoutes>
+              <Route
+                path="analytics"
+                element={<ClinicAnalyticsDashboard />}
+              />
+            </CustomRoutes>
                 <Resource
                   name="dashboard"
                   options={{ label: "Payment History" }}
