@@ -36,7 +36,7 @@ import {
 } from "./Job";
 import Dashboard from "./Dashboard";
 import ExpenseTracker from "./Expense/List";
-import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
+// import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
 
 const AdminApp = () => {
   return (
