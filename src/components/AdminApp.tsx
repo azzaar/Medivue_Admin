@@ -46,7 +46,7 @@ const AdminApp = () => {
       authProvider={customAuthProvider}
       loginPage={CustomLoginPage}
       theme={theme}
-      dashboard={ClinicAnalyticsDashboard}
+      // dashboard={ClinicAnalyticsDashboard}
       defaultTheme="light"
     >
       {(permissions) => {
