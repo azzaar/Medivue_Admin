@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

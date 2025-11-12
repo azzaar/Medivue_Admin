@@ -14,7 +14,7 @@ import {
   DeleteManyResult,
 } from "react-admin";
 //http://localhost:9000
-const apiUrl = "https://api.medivue.life";
+const apiUrl = "http://localhost:9000";
 const httpClient = (url: string, options: RequestInit = {}) => {
   if (!options.headers) {
     options.headers = new Headers({ Accept: "application/json" });

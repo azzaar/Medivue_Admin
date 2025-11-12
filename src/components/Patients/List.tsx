@@ -32,9 +32,9 @@ import {
   useRecordContext,
   Pagination,
 } from "react-admin";
-import CalendarView from "./CalendarView";
 import NotesButton from "./PatientNoteButton";
 import { CalendarToday } from "@mui/icons-material";
+import CalendarViewImproved from "./CalendarViewImproved";
 
 /** ✅ Status Chip — toggles backend status on click */
 type PatientStatus = "active" | "closed";
@@ -124,6 +124,11 @@ const PatientList = () => {
   const [openCalendarDialog, setOpenCalendarDialog] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
+  // Get linked doctor ID for non-admin users
+  const linkedDoctorId = permissions !== "admin" && permissions !== "superAdmin"
+    ? localStorage.getItem("linkedDoctorId")
+    : null;
+
   // --- Filters ---------------------------------------------------------------
   const patientFilters = [
     <SearchInput
@@ -132,7 +137,7 @@ const PatientList = () => {
       alwaysOn
       placeholder="Search by Name, City, Patient ID, Chief Complaint"
     />,
-    ...(permissions === "admin"
+    ...(permissions === "admin" || permissions === "superAdmin"
       ? [
           <ReferenceInput
             key="doctorFilter"
@@ -157,6 +162,12 @@ const PatientList = () => {
       ]}
     />,
   ];
+
+  // Build filter defaults for doctor login
+  const filterDefaults = { status: "active",  doctorId :''};
+  if (linkedDoctorId && linkedDoctorId !== "null") {
+    filterDefaults.doctorId = linkedDoctorId;
+  }
 
   // --- Calendar dialog handlers ---------------------------------------------
   const handleCalendarClose = () => {
@@ -210,9 +221,9 @@ const DoctorCell: React.FC = () => {
   return (
     <List
       filters={patientFilters}
-      filterDefaultValues={{ status: "active" }}
+      filterDefaultValues={filterDefaults}
       sort={{ field: "patientId", order: "ASC" }}
-       perPage={50}  
+       perPage={50}
          pagination={<Pagination rowsPerPageOptions={[25, 50, 100]} />} // optional
 
     >
@@ -285,7 +296,7 @@ const DoctorCell: React.FC = () => {
       <Dialog open={openCalendarDialog} onClose={handleCalendarClose} maxWidth="md" fullWidth>
         <DialogTitle>Patient Visit Calendar</DialogTitle>
         <DialogContent>
-          {selectedPatientId && <CalendarView patientId={selectedPatientId} />}
+          {selectedPatientId && <CalendarViewImproved patientId={selectedPatientId} />}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCalendarClose} color="primary">

@@ -563,7 +563,9 @@ const Dashboard: React.FC = () => {
                 lg: "repeat(7, 1fr)",
               },
               gap: 2,
+              marginBottom:'1rem'
             }}
+            
           >
             <TextField
                 select
@@ -603,7 +605,7 @@ const Dashboard: React.FC = () => {
                 sx={{ bgcolor: "#fff" }}
               />
             </Box>
-            <Grid item xs={12} sm={6} md={3} lg={1.7}>
+            <Grid item xs={12} sm={6} md={3} lg={1.7} className="flex flex-col gap-2 mt-2">
               <TextField
                 select
                 label="Doctor"
