@@ -70,7 +70,7 @@ const AdminApp = () => {
             {isAdmin && (
               <>
                 <Resource
-                  name="dashboard"
+                  name="ss"
                   options={{ label: "Dashboard" }}
                   list={ClinicAnalyticsDashboard} // trick: treat Dashboard as a list page
                 />
