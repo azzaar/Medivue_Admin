@@ -34,7 +34,7 @@ import {
 } from "react-admin";
 import NotesButton from "./PatientNoteButton";
 import { CalendarToday } from "@mui/icons-material";
-import CalendarViewImproved from "./CalendarViewImproved";
+import CalendarView from "./CalendarView";
 
 /** ✅ Status Chip — toggles backend status on click */
 type PatientStatus = "active" | "closed";
@@ -296,7 +296,7 @@ const DoctorCell: React.FC = () => {
       <Dialog open={openCalendarDialog} onClose={handleCalendarClose} maxWidth="md" fullWidth>
         <DialogTitle>Patient Visit Calendar</DialogTitle>
         <DialogContent>
-          {selectedPatientId && <CalendarViewImproved patientId={selectedPatientId} />}
+          {selectedPatientId && <CalendarView patientId={selectedPatientId} />}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCalendarClose} color="primary">
