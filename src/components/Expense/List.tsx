@@ -155,7 +155,7 @@ const ExpenseTracker = () => {
     amount: 0,                 // number
     date: new Date().toISOString().split("T")[0],
     doctorId: "",
-    referralPatientId: "",
+    referralDoctorId: "",
     referralAmount: 0,         // number
     commissionPercentage: 0,   // number
     paymentMethod: "cash",
@@ -179,7 +179,7 @@ const ExpenseTracker = () => {
         amount: Number(expense.amount) || 0,
         date: (expense.date || "").slice(0, 10),
         doctorId: expense.doctorId || "",
-        referralPatientId: expense.referralPatientId || "",
+        referralDoctorId: expense.referralDoctorId || "",
         referralAmount: Number(expense.referralAmount) || 0,
         commissionPercentage: Number(expense.commissionPercentage) || 0,
         paymentMethod: expense.paymentMethod,
@@ -196,7 +196,7 @@ const ExpenseTracker = () => {
         amount: 0,
         date: new Date().toISOString().split("T")[0],
         doctorId: "",
-        referralPatientId: "",
+        referralDoctorId: "",
         referralAmount: 0,
         commissionPercentage: 0,
         paymentMethod: "cash",
@@ -240,9 +240,10 @@ const ExpenseTracker = () => {
         }
 
         // Auto-generate referral commission title on patient selection
-        if (field === "referralPatientId" && updated.type === "referral_commission" && updated.referralPatientId) {
-          const pat = patients.find((p) => p.id === updated.referralPatientId);
-          if (pat) updated.title = `Referral Commission - ${pat.name}`;
+        if (field === "referralDoctorId" && updated.type === "referral_commission" && updated.referralDoctorId) {
+         const doc = doctors.find(d => d.id === updated.referralDoctorId);
+if (doc) updated.title = `Referral Commission - Dr. ${doc.name}`;
+
         }
 
         // Auto-calc commission amount = referralAmount * commissionPercentage / 100
@@ -260,7 +261,7 @@ const ExpenseTracker = () => {
         if (field === "type") {
           if (value !== "salary") updated.doctorId = "";
           if (value !== "referral_commission") {
-            updated.referralPatientId = "";
+            updated.referralDoctorId = "";
             updated.referralAmount = 0;
             updated.commissionPercentage = 0;
           }
@@ -283,7 +284,7 @@ const ExpenseTracker = () => {
       };
 
       // Clean empties to please backend validators
-      ["doctorId", "referralPatientId", "category", "notes"].forEach((k) => {
+      ["doctorId", "referralDoctorId", "category", "notes"].forEach((k) => {
         if (!payload[k]) delete payload[k];
       });
       if (!payload.date) payload.date = new Date().toISOString();
@@ -343,7 +344,7 @@ const ExpenseTracker = () => {
       exp.type,
       exp.title,
       exp.doctorName || (exp.doctorId ? getDoctorName(exp.doctorId) : "-"),
-      exp.patientName || (exp.referralPatientId ? getPatientName(exp.referralPatientId) : "-"),
+      exp.referralDoctorName || (exp.referralDoctorId ? getPatientName(exp.referralDoctorId) : "-"),
       Number(exp.amount) || 0,
       exp.paymentMethod,
       exp.status,
@@ -364,7 +365,7 @@ const ExpenseTracker = () => {
   // strictly boolean flag for disabling manual amount
   const isAutoCommission =
     formData.type === "referral_commission" &&
-    !!formData.referralPatientId &&
+    !!formData.referralDoctorId &&
     toNum(formData.referralAmount) > 0 &&
     toNum(formData.commissionPercentage) > 0;
 
@@ -567,9 +568,9 @@ const ExpenseTracker = () => {
                         👨‍⚕️ {expense.doctorName || getDoctorName(expense.doctorId)}
                       </p>
                     )}
-                    {expense.referralPatientId && (
+                    {expense.referralDoctorId && (
                       <p style={{ ...ExpenseStyles.expenseDescription, marginTop: 4 }}>
-                        👤 {expense.patientName || getPatientName(expense.referralPatientId)}
+                        👤 {expense.patientName || getPatientName(expense.referralDoctorId)}
                       </p>
                     )}
                     <div>
@@ -663,19 +664,13 @@ const ExpenseTracker = () => {
               {selectedExpenseType?.needsPatient && (
                 <div style={ExpenseStyles.formGroup}>
                   <label style={ExpenseStyles.label}>Select Patient *</label>
-                  <select
-                    style={ExpenseStyles.input}
-                    value={formData.referralPatientId}
-                    onChange={(e) => handleFormChange("referralPatientId", e.target.value)}
-                  >
-                    <option value="">-- Select Patient --</option>
-                    {patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                        {p.phone ? ` - ${p.phone}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <select value={formData.referralDoctorId} onChange={e => handleFormChange("referralDoctorId", e.target.value)}>
+  <option value="">Select Referral Doctor</option>
+  {doctors.map((d) => (
+    <option key={d.id} value={d.id}>{d.name}</option>
+  ))}
+</select>
+
                 </div>
               )}
 
@@ -826,7 +821,7 @@ const ExpenseTracker = () => {
                   !formData.title ||
                   !(toNum(formData.amount) > 0) ||
                   (selectedExpenseType?.needsDoctor && !formData.doctorId) ||
-                  (selectedExpenseType?.needsPatient && !formData.referralPatientId)
+                  (selectedExpenseType?.needsPatient && !formData.referralDoctorId)
                 }
               >
                 {editingExpense ? "Update" : "Add"} Expense
