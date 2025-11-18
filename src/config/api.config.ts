@@ -4,7 +4,7 @@
  */
 
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.medivue.life/api',
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://admin.medivue.life',
   TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
   ENV: process.env.NEXT_PUBLIC_ENV || 'development',
 } as const;
