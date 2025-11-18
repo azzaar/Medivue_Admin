@@ -24,7 +24,9 @@ import {
   BookOnline,
   EventAvailable as LeaveIcon,
   Receipt as ReceiptIcon,
-  EventNote as DailyVisitsIcon,
+  CalendarMonth as WeeklyAssignmentsIcon,
+  History as HistoryIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 
 import theme from "@/utils/theme";
@@ -47,7 +49,10 @@ import LeaveEdit from "./Leave/Edit";
 import LeaveShow from "./Leave/Show";
 import LeaveCalendar from "./Leave/Calendar";
 import InvoicePage from "./Invoice";
-import DailyVisitList from "./DailyVisits";
+import WeeklyAssignments from "./WeeklyAssignments";
+import WeeklyAssignmentHistory from "./WeeklyAssignments/History";
+import UserManagement from "./Users/List";
+
 
 const AdminApp = () => {
   return (
@@ -62,36 +67,117 @@ const AdminApp = () => {
     >
       {(permissions) => {
         const isAdmin = permissions === "admin";
-        const superAdmin = permissions === "superAdmin";
+        const isSuperAdmin = permissions === "superAdmin";
+        const isHR = permissions === "hr";
+        const isDoctor = permissions === "doctor";
 
         return (
           <>
-            {/* ✅ Admin-only resources and dashboard */}
-            {isAdmin && (
+            {/* ✅ Super Admin - Full Access */}
+            {isSuperAdmin && (
               <>
                 <Resource
-                  name="ss"
-                  options={{ label: "Dashboard" }}
-                  list={ClinicAnalyticsDashboard} // trick: treat Dashboard as a list page
+                  name="super-dashboard"
+                  options={{ label: "Analytics Dashboard" }}
+                  list={ClinicAnalyticsDashboard}
                 />
+            
                 <Resource name="expenses" list={ExpenseTracker} />
                 <CustomRoutes>
-              
-                  <Route
-                    path="leaves/calendar"
-                    element={<LeaveCalendar />}
-                  />
+                  <Route path="leaves/calendar" element={<LeaveCalendar />} />
                 </CustomRoutes>
                 <Resource
                   name="dashboard"
                   options={{ label: "Payment History" }}
-                  list={Dashboard} // trick: treat Dashboard as a list page
+                  list={Dashboard}
                 />
                 <Resource
-                  name="daily-visits"
-                  options={{ label: "Daily Visit List" }}
-                  list={DailyVisitList}
-                  icon={DailyVisitsIcon}
+                  name="weekly-assignments"
+                  options={{ label: "Weekly Patient Assignment" }}
+                  list={WeeklyAssignments}
+                  icon={WeeklyAssignmentsIcon}
+                />
+                <Resource
+                  name="assignment-history"
+                  options={{ label: "Assignment History" }}
+                  list={WeeklyAssignmentHistory}
+                  icon={HistoryIcon}
+                />
+                <Resource
+                  name="invoices"
+                  options={{ label: "Invoice Generator" }}
+                  list={InvoicePage}
+                  icon={ReceiptIcon}
+                />
+                <Resource
+                  name="doctors"
+                  list={DoctorList}
+                  create={DoctorCreate}
+                  edit={DoctorEdit}
+                  show={DoctorShow}
+                  icon={GroupIcon}
+                />
+                <Resource
+                  name="leaves"
+                  options={{ label: "Leave Management" }}
+                  list={LeaveList}
+                  create={LeaveCreate}
+                  edit={LeaveEdit}
+                  show={LeaveShow}
+                  icon={LeaveIcon}
+                />
+                <Resource
+                  name="appointments"
+                  list={AppoinmentList}
+                  options={{ label: "Website Bookings" }}
+                  icon={BookOnline}
+                />
+                <Resource
+                  name="jobs"
+                  options={{ label: "Hiring Posts" }}
+                  list={JobCategoryList}
+                  create={JobCategoryCreate}
+                  edit={JobCategoryEdit}
+                  show={JobCategoryShow}
+                />
+                <Resource
+                  name="users"
+                  options={{ label: "User Management" }}
+                  list={UserManagement}
+                  icon={ManageAccountsIcon}
+                />
+              </>
+            )}
+
+            {/* ✅ Admin - Similar to Super Admin but slightly restricted */}
+            {isAdmin && !isSuperAdmin && (
+              <>
+                <Resource
+                  name="ss"
+                  options={{ label: "Dashboard" }}
+                  list={ClinicAnalyticsDashboard}
+                />
+
+                <Resource name="expenses" list={ExpenseTracker} />
+                <CustomRoutes>
+                  <Route path="leaves/calendar" element={<LeaveCalendar />} />
+                </CustomRoutes>
+                <Resource
+                  name="dashboard"
+                  options={{ label: "Payment History" }}
+                  list={Dashboard}
+                />
+                <Resource
+                  name="weekly-assignments"
+                  options={{ label: "Weekly Patient Assignment" }}
+                  list={WeeklyAssignments}
+                  icon={WeeklyAssignmentsIcon}
+                />
+                <Resource
+                  name="assignment-history"
+                  options={{ label: "Assignment History" }}
+                  list={WeeklyAssignmentHistory}
+                  icon={HistoryIcon}
                 />
                 <Resource
                   name="invoices"
@@ -132,22 +218,59 @@ const AdminApp = () => {
                 />
               </>
             )}
+
+            {/* ✅ HR - Access to User Management, Leaves, Messages */}
+            {isHR && (
+              <>
+              
+                <Resource
+                  name="leaves"
+                  options={{ label: "Leave Management" }}
+                  list={LeaveList}
+                  create={LeaveCreate}
+                  edit={LeaveEdit}
+                  show={LeaveShow}
+                  icon={LeaveIcon}
+                />
+                <CustomRoutes>
+                  <Route path="leaves/calendar" element={<LeaveCalendar />} />
+                </CustomRoutes>
+          
+                <Resource
+                  name="doctors"
+                  list={DoctorList}
+                  show={DoctorShow}
+                  icon={GroupIcon}
+                />
+                <Resource
+                  name="jobs"
+                  options={{ label: "Hiring Posts" }}
+                  list={JobCategoryList}
+                  create={JobCategoryCreate}
+                  edit={JobCategoryEdit}
+                  show={JobCategoryShow}
+                />
+              </>
+            )}
+
+        
      
           
 
-            {/* ✅ Doctor Leave Management (for non-admin users) */}
-            {!isAdmin && !superAdmin && (
+            {/* ✅ Doctor - Access to their own data and messages */}
+            {isDoctor && (
               <>
                 <Resource
                   name="doctor-dashboard"
                   options={{ label: "My Dashboard" }}
                   list={DoctorDashboard}
                 />
+            
                 <Resource
                   name="daily-visits"
                   options={{ label: "My Daily Visits" }}
-                  list={DailyVisitList}
-                  icon={DailyVisitsIcon}
+                  list={WeeklyAssignments}
+                  icon={WeeklyAssignmentsIcon}
                 />
                 <Resource
                   name="invoices"
@@ -165,10 +288,7 @@ const AdminApp = () => {
                   icon={LeaveIcon}
                 />
                 <CustomRoutes>
-                  <Route
-                    path="leaves/calendar"
-                    element={<LeaveCalendar />}
-                  />
+                  <Route path="leaves/calendar" element={<LeaveCalendar />} />
                 </CustomRoutes>
               </>
             )}

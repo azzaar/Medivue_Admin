@@ -2,248 +2,406 @@
 
 import { useState, useEffect } from "react";
 import {
-  TextInput,
-  NumberInput,
-  SimpleForm,
-  Toolbar,
-  SaveButton,
-  Edit,
   useNotify,
-  useRedirect,
   useRefresh,
   useLogout,
-  useRecordContext,
+  Loading,
 } from "react-admin";
 import {
   Typography,
-  Divider,
   Box,
   Button,
-  CircularProgress,
+  TextField,
+  Card,
+  CardContent,
+  Alert,
+  Stack,
+  IconButton,
+  InputAdornment,
+  Chip,
 } from "@mui/material";
-import { toast } from "react-toastify";
+import Grid from '@mui/material/GridLegacy';
 
-async function updateUsernamePassword({
-  id,
-  username,
-  plainPassword,
-}: {
+import {
+  Visibility,
+  VisibilityOff,
+  Save as SaveIcon,
+  Lock as LockIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+} from "@mui/icons-material";
+import { httpClient } from "@/lib/httpClient";
+import { API_ENDPOINTS } from "@/config/api.config";
+
+interface DoctorProfile {
   id: string;
+  _id: string;
+  doctorId: string;
+  name: string;
+  specialization: string;
+  contactNumber: string;
+  email: string;
+  experience: number;
   username: string;
-  plainPassword: string;
-}): Promise<object> {
-  const token = localStorage.getItem("token");
-
-  const response = await fetch(
-    `https://api.medivue.life/doctors/${id}/credentials`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // Add the token here
-      },
-      body: JSON.stringify({ username, plainPassword }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || "Failed to update credentials");
-  }
-  return response.json();
+  isCommissionBased?: boolean;
 }
 
-const CustomToolbar = () => {
+const DoctorProfilePage = () => {
   const notify = useNotify();
   const refresh = useRefresh();
-  const redirect = useRedirect();
-
-  return (
-    <Toolbar>
-      <SaveButton
-        label="Save Profile Details"
-        mutationOptions={{
-          onSuccess: () => {
-            notify("General profile details updated successfully!", {
-              type: "success",
-            });
-            refresh();
-            redirect("/patients");
-          },
-          onError: (error: unknown) => {
-            let message = "Unknown error";
-            if (error instanceof Error) {
-              message = error.message;
-            }
-            notify(`Error updating profile: ${message}`, { type: "error" });
-          },
-        }}
-      />
-    </Toolbar>
-  );
-};
-
-const DoctorProfileForm = () => {
-  const record = useRecordContext();
   const logout = useLogout();
 
-  const [username, setUsername] = useState<string>("");
-  const [plainPassword, setPlainPassword] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState<DoctorProfile | null>(null);
 
+  // Profile form fields
+  const [formData, setFormData] = useState({
+    name: "",
+    specialization: "",
+    contactNumber: "",
+    email: "",
+    experience: 0,
+  });
+
+  // Credentials fields
+  const [credentials, setCredentials] = useState({
+    username: "",
+    newPassword: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [updatingCredentials, setUpdatingCredentials] = useState(false);
+
+  // Load doctor profile on mount
   useEffect(() => {
-    if (record) {
-      setUsername(record.username || "");
-      setPlainPassword("");
-    }
-  }, [record]);
+    loadProfile();
+  }, []);
 
-  const handleCredentialsChange = async () => {
+  const loadProfile = async () => {
+    setLoading(true);
     try {
-      if (!record?.id) {
-        toast.error("Doctor ID not found for updating credentials.");
-        return;
-      }
-      if (!username || !plainPassword) {
-        toast.error(
-          "Both Username and New Password are required to update credentials."
-        );
+      const linkedDoctorId = localStorage.getItem("linkedDoctorId");
+      if (!linkedDoctorId) {
+        notify("No linked doctor ID found. Please log in again.", { type: "error" });
         return;
       }
 
-      await updateUsernamePassword({
-        id: String(record.id),
-        username,
-        plainPassword,
-      });
-
-      toast.success(
-        "Login credentials updated. Please log in again with new credentials."
+      const data = await httpClient.get<DoctorProfile>(
+        `${API_ENDPOINTS.DOCTORS}/${linkedDoctorId}`
       );
-      logout();
-    } catch (err: unknown) {
-      console.error("Error updating credentials:", err);
-      if (err instanceof Error) {
-        toast.error(`Failed to update login credentials: ${err.message}`);
-      } else {
-        toast.error(
-          "Failed to update login credentials: An unknown error occurred."
-        );
-      }
+
+      setProfile(data);
+      setFormData({
+        name: data.name || "",
+        specialization: data.specialization || "",
+        contactNumber: data.contactNumber || "",
+        email: data.email || "",
+        experience: data.experience || 0,
+      });
+      setCredentials({
+        username: data.username || "",
+        newPassword: "",
+      });
+    } catch (error) {
+      notify(error.message || "Failed to load profile", { type: "error" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!record) {
+  const handleFieldChange = (field: string, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profile?.id) {
+      notify("Profile ID not found", { type: "error" });
+      return;
+    }
+
+    // Validation
+    if (!formData.name.trim()) {
+      notify("Name is required", { type: "warning" });
+      return;
+    }
+
+    if (!formData.contactNumber.trim()) {
+      notify("Contact number is required", { type: "warning" });
+      return;
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      notify("Invalid email format", { type: "warning" });
+      return;
+    }
+
+    if (formData.experience < 0) {
+      notify("Experience cannot be negative", { type: "warning" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await httpClient.put(`${API_ENDPOINTS.DOCTORS}/${profile.id}`, formData);
+      notify("Profile updated successfully!", { type: "success" });
+      await loadProfile(); // Reload fresh data
+      refresh(); // Refresh React Admin
+    } catch (error) {
+      notify(error.message || "Failed to update profile", { type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateCredentials = async () => {
+    if (!profile?.id) {
+      notify("Profile ID not found", { type: "error" });
+      return;
+    }
+
+    if (!credentials.username.trim()) {
+      notify("Username is required", { type: "warning" });
+      return;
+    }
+
+    if (!credentials.newPassword.trim()) {
+      notify("New password is required", { type: "warning" });
+      return;
+    }
+
+    if (credentials.newPassword.length < 6) {
+      notify("Password must be at least 6 characters", { type: "warning" });
+      return;
+    }
+
+    setUpdatingCredentials(true);
+    try {
+      await httpClient.put(`${API_ENDPOINTS.DOCTORS}/${profile.id}/credentials`, {
+        username: credentials.username,
+        plainPassword: credentials.newPassword,
+      });
+
+      notify("Credentials updated successfully! Please log in again.", {
+        type: "success",
+      });
+
+      // Auto logout after 2 seconds
+      setTimeout(() => {
+        logout();
+      }, 2000);
+    } catch (error) {
+      notify(error.message || "Failed to update credentials", { type: "error" });
+    } finally {
+      setUpdatingCredentials(false);
+    }
+  };
+
+  if (loading) {
+    return <Loading />;
+  }
+
+  if (!profile) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        height="200px"
-      >
-        <CircularProgress />
-        <Typography variant="h6" ml={2}>
-          Loading Doctor Profile...
-        </Typography>
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          Failed to load doctor profile. Please try again.
+        </Alert>
       </Box>
     );
   }
 
   return (
-    <SimpleForm toolbar={<CustomToolbar />}>
-      <Typography variant="h6" gutterBottom>
-        Doctor Profile Details
-      </Typography>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { sm: "1fr 1fr", xs: "1fr" },
-          gap: 2,
-        }}
-      >
-        <TextInput source="name" label="Name" fullWidth />
-        <TextInput source="specialization" label="Specialization" fullWidth />
-        <TextInput source="contactNumber" label="Contact Number" fullWidth />
-        <TextInput source="email" label="Email" type="email" fullWidth />
-        <NumberInput source="experience" label="Experience (Years)" fullWidth />
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1200, margin: "0 auto" }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+          <PersonIcon sx={{ fontSize: 40, color: "primary.main" }} />
+          <Box>
+            <Typography variant="h4" fontWeight="bold">
+              Doctor Profile
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Manage your profile information and login credentials
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" spacing={1} mt={1}>
+          <Chip label={`ID: ${profile.doctorId || profile.id}`} size="small" />
+          {profile.isCommissionBased && (
+            <Chip label="Commission Based" size="small" color="primary" />
+          )}
+        </Stack>
       </Box>
 
-      <Divider sx={{ my: 2 }} />
+      {/* Profile Information Card */}
+      <Card elevation={2} sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" fontWeight="bold" mb={3}>
+            Profile Information
+          </Typography>
 
-      <Typography variant="h6" gutterBottom>
-        Change Login Credentials
-      </Typography>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Full Name"
+                value={formData.name}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
+                required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
 
-      <Box
-  sx={{
-    display: 'grid',
-    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-    gap: 2,
-  }}
->
-  <TextInput
-    label="New Username"
-    value={username}
-    source="username"
-    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-      setUsername(e.target.value)
-    }
-    fullWidth
-    helperText="Enter a new username for login."
-  />
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Specialization"
+                value={formData.specialization}
+                onChange={(e) => handleFieldChange("specialization", e.target.value)}
+              />
+            </Grid>
 
-  <TextInput
-    label="New Password"
-    source="plainPassword"
-    value={plainPassword}
-    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-      setPlainPassword(e.target.value)
-    }
-    fullWidth
-    helperText="Enter a new password. Leave blank if you don't want to change it."
-  />
-</Box>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Contact Number"
+                value={formData.contactNumber}
+                onChange={(e) => handleFieldChange("contactNumber", e.target.value)}
+                required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PhoneIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
 
-      <Box display="flex" justifyContent="center" mt={3}>
-        <Button variant="contained" onClick={handleCredentialsChange}>
-          Update Login Credentials
-        </Button>
-      </Box>
-    </SimpleForm>
-  );
-};
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFieldChange("email", e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
 
-const DoctorProfilePage = () => {
-  const id: string | null = localStorage.getItem("linkedDoctorId");
-  const notify = useNotify();
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Experience (Years)"
+                type="number"
+                value={formData.experience}
+                onChange={(e) =>
+                  handleFieldChange("experience", parseInt(e.target.value) || 0)
+                }
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+          </Grid>
 
-  useEffect(() => {
-    if (!id) {
-      notify(
-        "Doctor ID not found in local storage. Please ensure you are logged in correctly.",
-        { type: "error" }
-      );
-    }
-  }, [id, notify]);
+          <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveProfile}
+              disabled={saving}
+              size="large"
+            >
+              {saving ? "Saving..." : "Save Profile"}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
 
-  if (!id) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        height="200px"
-      >
-        <Typography variant="h6">
-          Error: Doctor ID not available. Cannot load profile.
-        </Typography>
-      </Box>
-    );
-  }
+      {/* Login Credentials Card */}
+      <Card elevation={2}>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+            <LockIcon color="primary" />
+            <Typography variant="h6" fontWeight="bold">
+              Login Credentials
+            </Typography>
+          </Stack>
 
-  return (
-    <Edit resource="doctors" id={id} title="Edit Profile">
-      <DoctorProfileForm />
-    </Edit>
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            Changing your credentials will log you out immediately. You&apos;ll need to log
+            in again with your new credentials.
+          </Alert>
+
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={credentials.username}
+                onChange={(e) =>
+                  setCredentials((prev) => ({ ...prev, username: e.target.value }))
+                }
+                helperText="Enter your new username for login"
+              />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="New Password"
+                type={showPassword ? "text" : "password"}
+                value={credentials.newPassword}
+                onChange={(e) =>
+                  setCredentials((prev) => ({
+                    ...prev,
+                    newPassword: e.target.value,
+                  }))
+                }
+                helperText="Minimum 6 characters required"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+          </Grid>
+
+          <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              variant="contained"
+              color="warning"
+              startIcon={<LockIcon />}
+              onClick={handleUpdateCredentials}
+              disabled={updatingCredentials}
+              size="large"
+            >
+              {updatingCredentials ? "Updating..." : "Update Credentials"}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 

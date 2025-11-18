@@ -1,5 +1,5 @@
 "use client";
-import { Edit, SimpleForm, TextInput, NumberInput } from "react-admin";
+import { Edit, SimpleForm, TextInput, NumberInput, BooleanInput } from "react-admin";
 
 const DoctorEdit = () => (
   <Edit redirect="list">
@@ -8,9 +8,13 @@ const DoctorEdit = () => (
       <TextInput source="specialization" />
       <TextInput source="email" />
       <TextInput source="contactNumber" />
-              <TextInput source="contactNumber" />
 
       <NumberInput source="experience" />
+
+      <BooleanInput
+        source="isCommissionBased"
+        label="Commission-based Doctor"
+      />
     </SimpleForm>
   </Edit>
 );

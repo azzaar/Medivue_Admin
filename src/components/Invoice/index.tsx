@@ -66,6 +66,7 @@ interface PaymentRecord {
   date: string;
   fee: number;
   paid: number;
+  treatmentDescription?: string;
   paymentType?: "cash" | "upi" | "card" | "bank";
   visitedDoctor?: string;
   time?: string;
@@ -80,7 +81,6 @@ interface InvoiceData {
 }
 
 type DateMode = "single" | "range" | "monthly";
-type StatusFilter = "all" | "active" | "closed";
 
 const InvoicePage: React.FC = () => {
   const theme = useTheme();
@@ -90,7 +90,6 @@ const InvoicePage: React.FC = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [patientChoices, setPatientChoices] = useState<Patient[]>([]);
-  const [doctorsMap, setDoctorsMap] = useState<Record<string, string>>({});
 
   // Date selection
   const [dateMode, setDateMode] = useState<DateMode>("single");
@@ -102,8 +101,6 @@ const InvoicePage: React.FC = () => {
 
   // Filters
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<StatusFilter>("all");
-  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("");
 
   // Data
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
@@ -145,9 +142,7 @@ const InvoicePage: React.FC = () => {
           const name = String(d.name);
           map[id] = name;
         });
-        setDoctorsMap(map);
       })
-      .catch(() => setDoctorsMap({}));
   }, [dataProvider]);
 
   const generateInvoice = async () => {
@@ -197,13 +192,6 @@ const InvoicePage: React.FC = () => {
           return paymentMonth === selectedMonth && paymentYear === selectedYear;
         });
       }
-
-      // Filter by payment type
-      if (paymentTypeFilter) {
-        payments = payments.filter(p => p.paymentType === paymentTypeFilter);
-      }
-
-     
 
       const totalFee = payments.reduce((acc, p) => acc + (p.fee || 0), 0);
       const totalPaid = payments.reduce((acc, p) => acc + (p.paid || 0), 0);
@@ -496,36 +484,6 @@ const InvoicePage: React.FC = () => {
                       )}
                       fullWidth
                     />
-
-                    <TextField
-                      select
-                      label="Payment Status"
-                      value={paymentStatus}
-                      onChange={(e) => setPaymentStatus(e.target.value as StatusFilter)}
-                      size="small"
-                      fullWidth
-                      sx={{ bgcolor: "#fff" }}
-                    >
-                      <MenuItem value="all">All</MenuItem>
-                      <MenuItem value="active">Active Only</MenuItem>
-                      <MenuItem value="closed">Closed Only</MenuItem>
-                    </TextField>
-
-                    <TextField
-                      select
-                      label="Payment Type"
-                      value={paymentTypeFilter}
-                      onChange={(e) => setPaymentTypeFilter(e.target.value)}
-                      size="small"
-                      fullWidth
-                      sx={{ bgcolor: "#fff" }}
-                    >
-                      <MenuItem value="">All Types</MenuItem>
-                      <MenuItem value="upi">UPI</MenuItem>
-                      <MenuItem value="cash">Cash</MenuItem>
-                      <MenuItem value="card">Card</MenuItem>
-                      <MenuItem value="bank">Bank</MenuItem>
-                    </TextField>
                   </Stack>
                 </Box>
 
@@ -720,7 +678,7 @@ const InvoicePage: React.FC = () => {
                         <TableHead>
                           <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
                             <TableCell sx={{ fontWeight: 700 }}>DATE</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>DESCRIPTION</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>TREATMENT DESCRIPTION</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">TOTAL FEE</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">PAID</TableCell>
                             <TableCell sx={{ fontWeight: 700 }} align="right">DUE</TableCell>
@@ -739,17 +697,7 @@ const InvoicePage: React.FC = () => {
                                   })}
                                 </TableCell>
                                 <TableCell>
-                                  {payment.visitedDoctor && `   ${doctorsMap[payment.visitedDoctor] || payment.visitedDoctor}`}
-                                  {payment.time && (
-                                    <Typography variant="caption" display="block" color="text.secondary">
-                                      Time: {payment.time}
-                                    </Typography>
-                                  )}
-                                  {payment.paymentType && (
-                                    <Typography variant="caption" display="block" color="text.secondary">
-                                      Payment: {payment.paymentType.toUpperCase()}
-                                    </Typography>
-                                  )}
+                                  {payment.treatmentDescription || "Physiotherapy"}
                                 </TableCell>
                                 <TableCell align="right">₹{payment.fee.toFixed(2)}</TableCell>
                                 <TableCell align="right" sx={{ color: "success.main" }}>

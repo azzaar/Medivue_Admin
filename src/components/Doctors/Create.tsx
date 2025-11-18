@@ -5,7 +5,8 @@ import {
   TextInput,
   NumberInput,
   ArrayInput,
-  SimpleFormIterator
+  SimpleFormIterator,
+  BooleanInput
 } from "react-admin";
 
 const DoctorCreate = () => (
@@ -22,6 +23,12 @@ const DoctorCreate = () => (
       <TextInput source="address.postalCode" label="Postal Code" />
 
       <NumberInput source="experience" label="Experience (Years)" />
+
+      <BooleanInput
+        source="isCommissionBased"
+        label="Commission-based Doctor"
+        defaultValue={false}
+      />
 
       <ArrayInput source="qualifications" label="Qualifications">
         <SimpleFormIterator>

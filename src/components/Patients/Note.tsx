@@ -234,7 +234,7 @@ const PatientNotes: React.FC = () => {
     { joint: "Shoulder", actions: ["Flexion", "Extension", "Abduction", "Adduction", "Internal Rotation", "External Rotation"] },
     { joint: "Elbow", actions: ["Flexion", "Extension"] },
     { joint: "Wrist", actions: ["Flexion", "Extension", "Radial Deviation", "Ulnar Deviation"] },
-    { joint: "Hip", actions: ["Flexion", "Abduction", "Adduction", "Internal Rotation", "External Rotation"] },
+    { joint: "Hip", actions: ["Flexion", "Extension", "Abduction", "Adduction", "Internal Rotation", "External Rotation"] },
     { joint: "Knee", actions: ["Flexion", "Extension"] },
     { joint: "Ankle", actions: ["Plantarflexion", "Dorsiflexion"] },
     { joint: "Foot", actions: ["Inversion", "Eversion"] },
@@ -466,8 +466,13 @@ const PatientNotes: React.FC = () => {
     setPdfLoading(true);
     try {
       const doc = new jsPDF("p", "mm", "a4");
-      let y = 10;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - 2 * margin;
+      let y = margin;
 
+      // Header with logo and clinic info
       if (YOUR_LOGO_PATH) {
         const img = new Image();
         img.src = YOUR_LOGO_PATH;
@@ -476,70 +481,156 @@ const PatientNotes: React.FC = () => {
           img.onerror = () => res();
         });
         if (img.complete && img.naturalWidth) {
-          const w = 30;
-          const h = (img.height * w) / img.width;
-          doc.addImage(img, "JPEG", 10, y, w, h);
-          y += h + 5;
+          const logoWidth = 35;
+          const logoHeight = (img.height * logoWidth) / img.width;
+          doc.addImage(img, "JPEG", margin, y, logoWidth, logoHeight);
+          y = Math.max(y + logoHeight + 3, y + 25);
         }
       }
 
-      doc.setFontSize(18).setFont("helvetica", "bold");
-      doc.text(CLINIC_NAME, 105, y, { align: "center" });
-      y += 8;
-      doc.setFontSize(10).setFont("helvetica", "normal");
-      doc.text(CLINIC_ADDRESS, 105, y, { align: "center" });
-      y += 5;
-      doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, 105, y, { align: "center" });
-      y += 15;
+      // Clinic Header
+      doc.setFillColor(41, 128, 185);
+      doc.rect(margin, y, contentWidth, 0.5, "F");
+      y += 3;
 
-      doc.setFontSize(14).setFont("helvetica", "bold").text("Patient Information", 15, y);
+      doc.setFontSize(20).setFont("helvetica", "bold").setTextColor(41, 128, 185);
+      doc.text(CLINIC_NAME, pageWidth / 2, y, { align: "center" });
+      y += 6;
+
+      doc.setFontSize(9).setFont("helvetica", "normal").setTextColor(70, 70, 70);
+      const addressLines = doc.splitTextToSize(CLINIC_ADDRESS, contentWidth);
+      doc.text(addressLines, pageWidth / 2, y, { align: "center" });
+      y += addressLines.length * 4 + 2;
+
+      doc.setFontSize(9);
+      doc.text(`Phone: ${CLINIC_PHONE} | Email: ${CLINIC_EMAIL}`, pageWidth / 2, y, { align: "center" });
+      y += 3;
+
+      doc.setFillColor(41, 128, 185);
+      doc.rect(margin, y, contentWidth, 0.5, "F");
       y += 8;
-      doc.setFontSize(11).setFont("helvetica", "normal");
-      const lines = [
-        `Name: ${record.name}`,
-        `Age: ${record.age ?? "N/A"}`,
-        `Gender: ${record.gender ?? "N/A"}`,
-        `Phone: ${record.phoneNumber ?? "N/A"}`,
-        `Condition: ${record.condition ?? "N/A"}`,
-        `Alternate Phone: ${record.alternatePhoneNumber ?? "N/A"}`,
-        `Email: ${record.email ?? "N/A"}`,
-        `Address: ${
-          record.address
-            ? `${record.address.street}, ${record.address.city}, ${record.address.state} ${record.address.postalCode}`
-            : "N/A"
-        }`,
-      ];
-      for (const ln of lines) {
-        if (y > 280) {
-          doc.addPage();
-          y = 20;
-        }
-        doc.text(ln, 15, y);
-        y += 7;
+
+      // Patient Information Section
+      if (y > pageHeight - margin - 60) {
+        doc.addPage();
+        y = margin;
       }
-
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, y - 2, contentWidth, 8, "F");
+      doc.setFontSize(13).setFont("helvetica", "bold").setTextColor(41, 128, 185);
+      doc.text("PATIENT INFORMATION", margin + 3, y + 3);
       y += 10;
-      doc.setFontSize(14).setFont("helvetica", "bold").text("Patient Notes", 15, y);
-      y += 8;
+
+      doc.setFontSize(10).setFont("helvetica", "normal").setTextColor(0, 0, 0);
+
+      const patientInfo = [
+        { label: "Patient Name", value: record.name },
+        { label: "Age", value: record.age ?? "N/A" },
+        { label: "Gender", value: record.gender ?? "N/A" },
+        { label: "Phone Number", value: record.phoneNumber ?? "N/A" },
+        { label: "Condition", value: record.condition ?? "N/A" },
+      ];
+
+      for (const info of patientInfo) {
+        if (y > pageHeight - margin - 15) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.text(`${info.label}:`, margin + 5, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(String(info.value), margin + 50, y);
+        y += 6;
+      }
+
+      // Additional contact info
+      if (record.alternatePhoneNumber) {
+        if (y > pageHeight - margin - 15) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.text("Alternate Phone:", margin + 5, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(record.alternatePhoneNumber, margin + 50, y);
+        y += 6;
+      }
+
+      if (record.email) {
+        if (y > pageHeight - margin - 15) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.setFont("helvetica", "bold");
+        doc.text("Email:", margin + 5, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(record.email, margin + 50, y);
+        y += 6;
+      }
+
+      // Address
+      if (record.address) {
+        if (y > pageHeight - margin - 15) {
+          doc.addPage();
+          y = margin;
+        }
+        const fullAddress = `${record.address.street || ""}, ${record.address.city || ""}, ${record.address.state || ""} ${record.address.postalCode || ""}`;
+        doc.setFont("helvetica", "bold");
+        doc.text("Address:", margin + 5, y);
+        doc.setFont("helvetica", "normal");
+        const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 50);
+        doc.text(addressLines, margin + 50, y);
+        y += addressLines.length * 6;
+      }
+
+      // Patient Notes Section
+      y += 5;
+      if (y > pageHeight - margin - 60) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, y - 2, contentWidth, 8, "F");
+      doc.setFontSize(13).setFont("helvetica", "bold").setTextColor(41, 128, 185);
+      doc.text("CLINICAL NOTES", margin + 3, y + 3);
+      y += 10;
 
       if (!sortedNotes.length) {
-        doc.setFontSize(11).setFont("helvetica", "italic").text("No notes available.", 15, y);
+        doc.setFontSize(10).setFont("helvetica", "italic").setTextColor(100, 100, 100);
+        doc.text("No clinical notes available.", margin + 5, y);
         y += 7;
       } else {
         const list = [...sortedNotes].sort(
           (a, b) => new Date(b.noteDate).getTime() - new Date(a.noteDate).getTime()
         );
-        for (const note of list) {
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-          }
-          doc.setFontSize(12).setFont("helvetica", "bold");
-          doc.text(`Date: ${new Date(note.noteDate).toLocaleDateString()}`, 15, y);
-          y += 7;
-          doc.setFontSize(11).setFont("helvetica", "normal");
 
-          const fields: Array<{ label: string; value?: string }> = [
+        for (let idx = 0; idx < list.length; idx++) {
+          const note = list[idx];
+
+          // Check if we need a new page
+          if (y > pageHeight - margin - 30) {
+            doc.addPage();
+            y = margin;
+          }
+
+          // Note date header
+          doc.setFillColor(230, 240, 250);
+          doc.rect(margin, y - 2, contentWidth, 7, "F");
+          doc.setFontSize(11).setFont("helvetica", "bold").setTextColor(0, 0, 0);
+          doc.text(
+            `Visit ${idx + 1} - ${new Date(note.noteDate).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric"
+            })}`,
+            margin + 3,
+            y + 3
+          );
+          y += 9;
+
+          doc.setFontSize(9).setFont("helvetica", "normal").setTextColor(0, 0, 0);
+
+          const fields: Array<{ label: string; value?: string | string[] }> = [
             { label: "Chief Complaint", value: note.chiefComplaint },
             { label: "History", value: note.history },
             { label: "Medications", value: note.medications },
@@ -548,62 +639,99 @@ const PatientNotes: React.FC = () => {
             { label: "Pain Assessment (NPRS)", value: note.painAssessmentNPRS },
             { label: "On Examination", value: note.onExamination },
             {
-              label: "MMT",
-              value:
-                note.mmt?.length
-                  ? note.mmt
-                      .map((j) => {
-                        const parts: string[] = [];
-                        if (j.right?.actions?.length) {
-                          parts.push(`Right: ${j.right.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}`);
-                        }
-                        if (j.left?.actions?.length) {
-                          parts.push(`Left: ${j.left.actions.map((a) => `${a.action}: ${a.grade}`).join(" | ")}`);
-                        }
-                        return `${j.joint}: ${parts.length ? parts.join(" | ") : "N/A"}`;
-                      })
-                      .join("\n")
-                  : undefined,
+              label: "MMT (Manual Muscle Testing)",
+              value: note.mmt?.length
+                ? note.mmt.map((j) => {
+                    const parts: string[] = [];
+                    if (j.right?.actions?.length) {
+                      parts.push(`Right: ${j.right.actions.map((a) => `${a.action}: ${a.grade}`).join(", ")}`);
+                    }
+                    if (j.left?.actions?.length) {
+                      parts.push(`Left: ${j.left.actions.map((a) => `${a.action}: ${a.grade}`).join(", ")}`);
+                    }
+                    return `  • ${j.joint}: ${parts.length ? parts.join(" | ") : "N/A"}`;
+                  })
+                : undefined,
             },
             { label: "Treatment", value: note.treatment },
             {
               label: "Additional Notes",
               value: note.additionalNotes?.length
-                ? note.additionalNotes.map((n) => `${n.heading}: ${n.description}`).join("\n")
+                ? note.additionalNotes.map((n) => `  • ${n.heading}: ${n.description}`)
                 : undefined,
             },
           ];
 
-          for (const f of fields) {
-            if (!f.value) continue;
-            const block = doc.splitTextToSize(`${f.label}: ${f.value}`, 180);
-            if (y + block.length * 6 > 285) {
+          for (const field of fields) {
+            if (!field.value) continue;
+
+            // Check page space
+            if (y > pageHeight - margin - 20) {
               doc.addPage();
-              y = 20;
+              y = margin;
             }
-            doc.text(block, 15, y);
-            y += block.length * 6 + 2;
+
+            // Field label
+            doc.setFont("helvetica", "bold");
+            doc.text(`${field.label}:`, margin + 5, y);
+            y += 5;
+
+            // Field value
+            doc.setFont("helvetica", "normal");
+            const valueText = Array.isArray(field.value)
+              ? field.value.join("\n")
+              : String(field.value);
+            const wrappedText = doc.splitTextToSize(valueText, contentWidth - 10);
+
+            // Check if wrapped text fits
+            if (y + wrappedText.length * 4 > pageHeight - margin - 10) {
+              doc.addPage();
+              y = margin;
+            }
+
+            doc.text(wrappedText, margin + 8, y);
+            y += wrappedText.length * 4 + 3;
           }
 
-          y += 6;
+          // Separator between notes (spacing only, no divider line)
+          if (idx < list.length - 1) {
+            y += 10; // Just add spacing between notes
+            if (y > pageHeight - margin - 10) {
+              doc.addPage();
+              y = margin;
+            }
+          }
         }
       }
 
+      // Footer with page numbers and generation date
       const pages = doc.getNumberOfPages();
+      const currentDate = new Date().toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      });
+
       for (let i = 1; i <= pages; i++) {
-        doc
-          .setPage(i)
-          .setFontSize(8)
-          .text(
-            `Page ${i} of ${pages}`,
-            doc.internal.pageSize.width - 20,
-            doc.internal.pageSize.height - 10,
-            { align: "right" }
-          );
+        doc.setPage(i);
+        doc.setFontSize(8).setTextColor(120, 120, 120);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+        doc.text(
+          `Generated on ${currentDate}`,
+          margin,
+          pageHeight - 10
+        );
+        doc.text(
+          `Page ${i} of ${pages}`,
+          pageWidth - margin,
+          pageHeight - 10,
+          { align: "right" }
+        );
       }
 
-      doc.save(`Patient_Report_${record.name.replace(/\s/g, "_")}.pdf`);
-      notify("PDF generated", { type: "success" });
+      doc.save(`${CLINIC_NAME.replace(/\s/g, "_")}_PatientReport_${record.name.replace(/\s/g, "_")}_${new Date().toISOString().split('T')[0]}.pdf`);
+      notify("PDF generated successfully", { type: "success" });
     } catch {
       notify("Failed to generate PDF", { type: "error" });
     } finally {
@@ -650,24 +778,39 @@ const PatientNotes: React.FC = () => {
                 </Stack>
               </Box>
             </Stack>
-            <Stack direction={{ xs: 'row', md: 'column' }} spacing={1} width={{ xs: '100%', md: 'auto' }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              width={{ xs: '100%', sm: 'auto' }}
+              alignItems="stretch"
+            >
               {viewMode === "notes" ? (
-                <Button 
-                  variant="contained" 
-                  startIcon={<AddCircleOutlineIcon />} 
+                <Button
+                  variant="contained"
+                  startIcon={<AddCircleOutlineIcon />}
                   onClick={goToEditor}
                   fullWidth={isMobile}
-                  sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' } }}
+                  sx={{
+                    bgcolor: 'white',
+                    color: 'primary.main',
+                    minWidth: { sm: '140px' },
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }
+                  }}
                 >
                   Add Note
                 </Button>
               ) : (
-                <Button 
-                  variant="outlined" 
-                  startIcon={<ArrowBackIcon />} 
+                <Button
+                  variant="outlined"
+                  startIcon={<ArrowBackIcon />}
                   onClick={backToNotes}
                   fullWidth={isMobile}
-                  sx={{ borderColor: 'white', color: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                  sx={{
+                    borderColor: 'white',
+                    color: 'white',
+                    minWidth: { sm: '140px' },
+                    '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' }
+                  }}
                 >
                   Back
                 </Button>
@@ -678,9 +821,14 @@ const PatientNotes: React.FC = () => {
                 onClick={handleDownloadPdf}
                 disabled={pdfLoading}
                 fullWidth={isMobile}
-                sx={{ borderColor: 'white', color: 'white', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                sx={{
+                  borderColor: 'white',
+                  color: 'white',
+                  minWidth: { sm: '140px' },
+                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' }
+                }}
               >
-                {pdfLoading ? "Generating..." : "PDF"}
+                {pdfLoading ? "Generating..." : "Download PDF"}
               </Button>
             </Stack>
           </Stack>

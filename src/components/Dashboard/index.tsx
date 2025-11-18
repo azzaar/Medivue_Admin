@@ -65,6 +65,7 @@ interface PaymentTypeRow {
 interface DoctorRow {
   id: string;
   visitedDoctor: string;
+  doctorName?: string;
   totalPaid: number;
   totalDue: number;
   totalFee: number;
@@ -282,7 +283,7 @@ const Dashboard: React.FC = () => {
       csv += toCSV(["Doctor", "Visit Count", "Total Fee", "Paid", "Due"]) + "\n";
       rowsByDoctor.forEach((r) =>
         (csv += toCSV([
-          doctorLabel(r.visitedDoctor) || "Not Specified",
+          r.doctorName || doctorLabel(r.visitedDoctor) || "Not Specified",
           String(r.count),
           String(r.totalFee),
           String(r.totalPaid),
@@ -345,12 +346,12 @@ const Dashboard: React.FC = () => {
   const downloadDoctorVisitReport = () => {
     let csv = `Doctor Visit Report - ${getDateRangeString()}\n`;
     csv += `Generated: ${new Date().toLocaleString()}\n\n`;
-    
+
     csv += toCSV(["Doctor", "Visit Count", "Total Fee", "Total Paid", "Total Due", "Avg Fee/Visit"]) + "\n";
     rowsByDoctor.forEach((r) => {
       const avgFee = r.count > 0 ? (r.totalFee / r.count).toFixed(0) : "0";
       csv += toCSV([
-        doctorLabel(r.visitedDoctor) || "Not Specified",
+        r.doctorName || doctorLabel(r.visitedDoctor) || "Not Specified",
         String(r.count),
         String(r.totalFee),
         String(r.totalPaid),
@@ -1389,7 +1390,7 @@ const Dashboard: React.FC = () => {
                                   <LocalHospitalIcon sx={{ fontSize: 18, color: theme.palette.secondary.main }} />
                                 </Box>
                                 <Typography variant="body2" fontWeight={600}>
-                                  {doctorLabel(r.visitedDoctor)}
+                                  {r.doctorName || doctorLabel(r.visitedDoctor)}
                                 </Typography>
                               </Stack>
                             </TableCell>

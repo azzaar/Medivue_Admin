@@ -1,14 +1,47 @@
 // authProvider.ts
+import { httpClient } from "@/lib/httpClient";
+import { API_ENDPOINTS } from "@/config/api.config";
 
-const TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
+// Session timeout: 4 hours (more user-friendly)
+const TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+// Warning before logout: 5 minutes before timeout
+const WARNING_TIME = TIMEOUT - (5 * 60 * 1000);
 
 let idleTimeout: NodeJS.Timeout;
+let warningTimeout: NodeJS.Timeout;
+
+// Show warning dialog before session expires
+const showSessionWarning = () => {
+  const shouldExtend = window.confirm(
+    "Your session will expire in 5 minutes due to inactivity.\n\n" +
+    "Click OK to extend your session, or Cancel to log out now."
+  );
+
+  if (shouldExtend) {
+    // User wants to extend - reset the timers
+    resetIdleTimeout();
+  } else {
+    // User wants to log out
+    authProvider.logout();
+    window.location.href = "/login";
+  }
+};
 
 const resetIdleTimeout = () => {
+  // Clear existing timers
   clearTimeout(idleTimeout);
+  clearTimeout(warningTimeout);
+
+  // Set warning timer (shows 5 minutes before logout)
+  warningTimeout = setTimeout(() => {
+    showSessionWarning();
+  }, WARNING_TIME);
+
+  // Set auto-logout timer
   idleTimeout = setTimeout(() => {
-    authProvider.logout(); // Automatically log out after inactivity
-    window.location.href = "/login"; // Redirect to login page
+    authProvider.logout();
+    alert("Your session has expired due to inactivity. Please log in again.");
+    window.location.href = "/login";
   }, TIMEOUT);
 };
 
@@ -20,21 +53,21 @@ const authProvider = {
     username: string;
     password: string;
   }) => {
-    const request = new Request("https://api.medivue.life/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-      headers: new Headers({ "Content-Type": "application/json" }),
-    });
+    try {
+      const data = await httpClient.post<{
+        token: string;
+        role: string;
+        linkedDoctorId: string;
+      }>(API_ENDPOINTS.AUTH.LOGIN, { username, password }, { skipAuth: true });
 
-    const response = await fetch(request);
-    if (!response.ok) throw new Error("Login failed");
+      localStorage.setItem("linkedDoctorId", data.linkedDoctorId); // Store linked doctor ID
+      localStorage.setItem("token", data.token); // Store token
+      localStorage.setItem("role", data.role); // Store role
 
-    const { token, role, linkedDoctorId } = await response.json();
-    localStorage.setItem("linkedDoctorId", linkedDoctorId); // Store linked doctor ID
-    localStorage.setItem("token", token); // Store token
-    localStorage.setItem("role", role); // Store role
-
-    resetIdleTimeout(); // Reset idle timeout after successful login
+      resetIdleTimeout(); // Reset idle timeout after successful login
+    } catch (error) {
+      throw new Error(error.message || "Login failed");
+    }
   },
 
   logout: () => {
@@ -42,6 +75,7 @@ const authProvider = {
     localStorage.removeItem("role");
     localStorage.removeItem("linkedDoctorId"); // Clear doctor ID
     clearTimeout(idleTimeout); // Clear idle timeout
+    clearTimeout(warningTimeout); // Clear warning timeout
 
     return Promise.resolve();
   },

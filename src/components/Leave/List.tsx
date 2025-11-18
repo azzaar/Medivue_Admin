@@ -511,7 +511,6 @@ interface LeaveFilter {
           {isAdmin && <Tab label="All Leaves" value="all" />}
           {isAdmin && <Tab label="Approved" value="approved" icon={<ApprovedIcon />} iconPosition="start" />}
           {isAdmin && <Tab label="Rejected" value="rejected" icon={<RejectedIcon />} iconPosition="start" />}
-          <Tab label="Calendar View" value="calendar" icon={<CalendarIcon />} iconPosition="start" />
         </Tabs>
       </Paper>
 
