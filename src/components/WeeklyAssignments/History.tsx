@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNotify, Loading } from "react-admin";
-import { httpClient } from "@/lib/httpClient";
+import { apiClient as httpClient } from "@/utils";
 import { API_ENDPOINTS } from "@/config/api.config";
 import {
   Box,

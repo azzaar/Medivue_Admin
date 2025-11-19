@@ -31,7 +31,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PersonIcon from "@mui/icons-material/Person";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
-import { httpClient } from "@/lib/httpClient";
+import { apiClient as httpClient } from "@/utils";
 
 interface User {
   _id: string;

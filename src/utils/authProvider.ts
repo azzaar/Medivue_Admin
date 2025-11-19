@@ -1,5 +1,5 @@
 // authProvider.ts
-import { httpClient } from "@/lib/httpClient";
+import { apiClient as httpClient } from "@/utils";
 import { API_ENDPOINTS } from "@/config/api.config";
 
 // Session timeout: 4 hours (more user-friendly)

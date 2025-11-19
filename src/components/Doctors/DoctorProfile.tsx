@@ -31,7 +31,7 @@ import {
   Email as EmailIcon,
   Phone as PhoneIcon,
 } from "@mui/icons-material";
-import { httpClient } from "@/lib/httpClient";
+import { apiClient as httpClient } from "@/utils";
 import { API_ENDPOINTS } from "@/config/api.config";
 
 interface DoctorProfile {
