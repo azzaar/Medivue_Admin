@@ -693,13 +693,9 @@ const PatientNotes: React.FC = () => {
             y += wrappedText.length * 4 + 3;
           }
 
-          // Separator between notes (spacing only, no divider line)
+          // Spacing between notes (no divider line)
           if (idx < list.length - 1) {
-            y += 10; // Just add spacing between notes
-            if (y > pageHeight - margin - 10) {
-              doc.addPage();
-              y = margin;
-            }
+            y += 8; // Add spacing between notes
           }
         }
       }

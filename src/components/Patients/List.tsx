@@ -123,6 +123,7 @@ const PatientList = () => {
   const { permissions } = usePermissions();
   const [openCalendarDialog, setOpenCalendarDialog] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+              const isCommissionBased = localStorage.getItem('isCommissionBased') === 'true';
 
   // Get linked doctor ID for non-admin users
   const linkedDoctorId = permissions !== "admin" && permissions !== "superAdmin"
@@ -249,7 +250,7 @@ const DoctorCell: React.FC = () => {
         <NotesButton />
 
         {/* Calendar Button */}
-        <FunctionField
+        {!isCommissionBased &&  <FunctionField
           label="Calendar"
           render={(record: { id: string }) => (
             <Button
@@ -286,7 +287,8 @@ const DoctorCell: React.FC = () => {
               />
             </Button>
           )}
-        />
+        />}
+       
 
         <ShowButton />
         <EditButton />

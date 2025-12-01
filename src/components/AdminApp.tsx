@@ -17,6 +17,8 @@ import PatientEdit from "./Patients/Edit";
 import PatientList from "./Patients/List";
 import { PatientShow } from "./Patients/Show";
 import PatientNotes from "./Patients/Note";
+import PatientPortalNotes from "./PatientPortal/Notes";
+import PatientVisits from "./PatientPortal/Visits";
 
 import {
   Person as PersonIcon,
@@ -27,6 +29,8 @@ import {
   CalendarMonth as WeeklyAssignmentsIcon,
   History as HistoryIcon,
   ManageAccounts as ManageAccountsIcon,
+  Description as NotesIcon,
+  Event as VisitsIcon,
 } from "@mui/icons-material";
 
 import theme from "@/utils/theme";
@@ -41,6 +45,7 @@ import {
 } from "./Job";
 import Dashboard from "./Dashboard";
 import DoctorDashboard from "./Dashboard/DoctorDashboard";
+import PatientDashboard from "./PatientDashboard";
 import ExpenseTracker from "./Expense/List";
 import ClinicAnalyticsDashboard from "./Dashboard/OverAllDashboard";
 import LeaveList from "./Leave/List";
@@ -70,6 +75,7 @@ const AdminApp = () => {
         const isSuperAdmin = permissions === "superAdmin";
         const isHR = permissions === "hr";
         const isDoctor = permissions === "doctor";
+        const isPatient = permissions === "patient";
 
         return (
           <>
@@ -258,48 +264,84 @@ const AdminApp = () => {
           
 
             {/* ✅ Doctor - Access to their own data and messages */}
-            {isDoctor && (
+            {isDoctor && (() => {
+              const isCommissionBased = localStorage.getItem('isCommissionBased') === 'true';
+
+              return (
+                <>
+                  {!isCommissionBased && (
+                    <>
+                      <Resource
+                        name="doctor-dashboard"
+                        options={{ label: "My Dashboard" }}
+                        list={DoctorDashboard}
+                      />
+                      <Resource
+                        name="daily-visits"
+                        options={{ label: "My Daily Visits" }}
+                        list={WeeklyAssignments}
+                        icon={WeeklyAssignmentsIcon}
+                      />
+                        <Resource
+                    name="invoices"
+                    options={{ label: "My Invoices" }}
+                    list={InvoicePage}
+                    icon={ReceiptIcon}
+                  />
+                  <Resource
+                    name="leaves"
+                    options={{ label: "My Leaves" }}
+                    list={LeaveList}
+                    create={LeaveCreate}
+                    edit={LeaveEdit}
+                    show={LeaveShow}
+                    icon={LeaveIcon}
+                  />
+                    </>
+                  )}
+                
+                  <CustomRoutes>
+                    <Route path="leaves/calendar" element={<LeaveCalendar />} />
+                  </CustomRoutes>
+                </>
+              );
+            })()}
+
+            {/* ✅ Patient - Access to their own data only */}
+            {isPatient && (
               <>
                 <Resource
-                  name="doctor-dashboard"
+                  name="patient-dashboard"
                   options={{ label: "My Dashboard" }}
-                  list={DoctorDashboard}
-                />
-            
-                <Resource
-                  name="daily-visits"
-                  options={{ label: "My Daily Visits" }}
-                  list={WeeklyAssignments}
-                  icon={WeeklyAssignmentsIcon}
+                  list={PatientDashboard}
                 />
                 <Resource
-                  name="invoices"
-                  options={{ label: "My Invoices" }}
-                  list={InvoicePage}
-                  icon={ReceiptIcon}
+                  name="patient-notes"
+                  options={{ label: "My Medical Notes" }}
+                  list={PatientPortalNotes}
+                  icon={NotesIcon}
                 />
                 <Resource
-                  name="leaves"
-                  options={{ label: "My Leaves" }}
-                  list={LeaveList}
-                  create={LeaveCreate}
-                  edit={LeaveEdit}
-                  show={LeaveShow}
-                  icon={LeaveIcon}
+                  name="patient-visits"
+                  options={{ label: "My Visit History" }}
+                  list={PatientVisits}
+                  icon={VisitsIcon}
                 />
-                <CustomRoutes>
-                  <Route path="leaves/calendar" element={<LeaveCalendar />} />
-                </CustomRoutes>
               </>
             )}
-  <Resource
-              name="patients"
-              list={PatientList}
-              create={PatientCreate}
-              edit={PatientEdit}
-              show={PatientShow}
-              icon={PersonIcon}
-            />
+
+            {/* Patients resource - available to all non-patient roles */}
+            {!isPatient && (
+              <Resource
+                name="patients"
+                list={PatientList}
+                create={PatientCreate}
+                edit={PatientEdit}
+                show={PatientShow}
+                icon={PersonIcon}
+              />
+            )}
+
             <CustomRoutes>
               <Route
                 path="/doctors/:id/profile"

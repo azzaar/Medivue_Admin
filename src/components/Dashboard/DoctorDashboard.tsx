@@ -45,6 +45,9 @@ const DoctorDashboard: React.FC = () => {
   const notify = useNotify();
   const { data: identity } = useGetIdentity();
 
+  // Check if doctor is commission-based
+  const isCommissionBased = localStorage.getItem('isCommissionBased') === 'true';
+
   const [loading, setLoading] = useState<boolean>(true);
   const [filterMode, setFilterMode] = useState<FilterMode>('monthly');
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -209,6 +212,46 @@ const DoctorDashboard: React.FC = () => {
         : new Date(selectedMonth + '-01').toLocaleDateString("en-US", { month: "long" }),
     },
   ], [stats, filterMode, selectedDate, selectedMonth, fmt]);
+
+  // Show message for commission-based doctors
+  if (isCommissionBased) {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "70vh",
+          flexDirection: "column",
+          gap: 3,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+          p: 3,
+        }}
+      >
+        <Box
+          sx={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: `0 8px 30px ${alpha(theme.palette.primary.main, 0.3)}`,
+          }}
+        >
+          <LocalHospitalIcon sx={{ fontSize: 40, color: "#fff" }} />
+        </Box>
+        <Typography variant="h5" color="text.primary" fontWeight={700} textAlign="center">
+          Commission-Based Doctor Account
+        </Typography>
+        <Typography variant="body1" color="text.secondary" textAlign="center" maxWidth={600}>
+          Dashboard and visit statistics are not available for commission-based doctors.
+          You can access your patients, invoices, and leave management from the menu.
+        </Typography>
+      </Box>
+    );
+  }
 
   if (loading) {
     return (

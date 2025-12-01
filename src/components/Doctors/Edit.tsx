@@ -2,7 +2,7 @@
 import { Edit, SimpleForm, TextInput, NumberInput, BooleanInput } from "react-admin";
 
 const DoctorEdit = () => (
-  <Edit redirect="list">
+  <Edit redirect="list" actions={false}>
     <SimpleForm>
       <TextInput source="name" />
       <TextInput source="specialization" />

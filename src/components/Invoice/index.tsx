@@ -159,12 +159,12 @@ const InvoicePage: React.FC = () => {
         id: selectedPatient.id
       });
 
-      // Fetch payment history
+      // Fetch payment history (sorted chronologically - oldest to newest)
       const paymentsResp = await dataProvider.getList<PaymentRecord>(
         `patients/${selectedPatient.id}/visit-payments`,
         {
           pagination: { page: 1, perPage: 10000 },
-          sort: { field: "date", order: "DESC" },
+          sort: { field: "date", order: "ASC" },
           filter: {},
         }
       );

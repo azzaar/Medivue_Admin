@@ -21,7 +21,7 @@ const PatientEdit = () => {
   }, []);
 
   return (
-    <Edit redirect="list">
+    <Edit redirect="list" actions={false}>
       <SimpleForm>
         {/* Patient Personal Information */}
         <TextInput source="name" label="Name" required />

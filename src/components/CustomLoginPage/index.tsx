@@ -15,6 +15,8 @@ import {
   Stack,
   Paper,
   CircularProgress,
+  Alert,
+  AlertTitle,
 } from '@mui/material';
 import {
   Visibility,
@@ -30,17 +32,30 @@ const CustomLoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [contactInfo, setContactInfo] = useState('');
   const login = useLogin();
   const notify = useNotify();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage('');
+    setContactInfo('');
     try {
       await login({ username, password });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      notify('Invalid username or password', { type: 'error' });
+    } catch (error: unknown) {
+      // Check if error has specific message and contact info (for closed accounts)
+      const err = error as { message?: string; contactInfo?: string };
+      if (err?.message) {
+        setErrorMessage(err.message);
+        if (err.contactInfo) {
+          setContactInfo(err.contactInfo);
+        }
+      } else {
+        setErrorMessage('Invalid username or password');
+      }
+      notify(err?.message || 'Invalid username or password', { type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -112,6 +127,26 @@ const CustomLoginPage = () => {
                 </Typography>
               </Box>
             </Stack>
+
+            {/* Error Alert */}
+            {errorMessage && (
+              <Alert
+                severity="error"
+                sx={{ mb: 3 }}
+                onClose={() => {
+                  setErrorMessage('');
+                  setContactInfo('');
+                }}
+              >
+                <AlertTitle>Login Failed</AlertTitle>
+                {errorMessage}
+                {contactInfo && (
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 600 }}>
+                    {contactInfo}
+                  </Typography>
+                )}
+              </Alert>
+            )}
 
             {/* Login Form */}
             <form onSubmit={handleSubmit}>

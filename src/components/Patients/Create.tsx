@@ -56,12 +56,13 @@ const PatientCreate = () => {
         ) : (
          <ReferenceArrayInput
   source="doctorIds"
+  
   reference="doctors"
   filter={{ all: true }}
   perPage={1000}
   sort={{ field: "name", order: "ASC" }}
 >
-  <SelectArrayInput optionText="name" optionValue="id" />
+  <SelectArrayInput optionText="name" optionValue="id" required={true }/>
 </ReferenceArrayInput>
         )}
 
