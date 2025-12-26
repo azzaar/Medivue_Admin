@@ -337,30 +337,45 @@ if (doc) updated.title = `Referral Commission - Dr. ${doc.name}`;
   return acc; // <- typed
 }, [filteredExpenses]);
 
+  const getPaymentMethodLabel = useCallback(
+    (method) => PAYMENT_METHODS.find((m) => m.value === method)?.label?.replace(/[^\w\s]/gi, "").trim() || method || "-",
+    []
+  );
+  const getStatusLabel = useCallback(
+    (status) => STATUS_OPTIONS.find((s) => s.value === status)?.label || status || "-",
+    []
+  );
+
   const downloadCSV = useCallback(() => {
-    const headers = ["Date", "Type", "Title", "Doctor", "Patient", "Amount", "Payment Method", "Status"];
-    const rows = filteredExpenses.map((exp) => [
-      (exp.date || "").slice(0, 10),
-      exp.type,
-      exp.title,
-      exp.doctorName || (exp.doctorId ? getDoctorName(exp.doctorId) : "-"),
-      exp.referralDoctorName || (exp.referralDoctorId ? getPatientName(exp.referralDoctorId) : "-"),
-      Number(exp.amount) || 0,
-      exp.paymentMethod,
-      exp.status,
-    ]);
+    const headers = ["Date", "Type", "Title", "Doctor", "Referral Doctor", "Amount", "Payment Method", "Status"];
+    const rows = filteredExpenses.map((exp) => {
+      const dateObj = new Date(exp.date);
+      const formattedDate = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
+        : "-";
+      return [
+        formattedDate,
+        getTypeLabel(exp.type).replace(/[^\w\s]/gi, "").trim(),
+        exp.title,
+        exp.doctorName || (exp.doctorId ? getDoctorName(exp.doctorId) : "-"),
+        exp.referralDoctorName || (exp.referralDoctorId ? getDoctorName(exp.referralDoctorId) : "-"),
+        Number(exp.amount) || 0,
+        getPaymentMethodLabel(exp.paymentMethod),
+        getStatusLabel(exp.status),
+      ];
+    });
     const csv = [
       headers.join(","),
       ...rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")),
     ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `expenses-${filters.month}-${filters.year}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredExpenses, filters, getDoctorName, getPatientName]);
+  }, [filteredExpenses, filters, getDoctorName, getTypeLabel, getPaymentMethodLabel, getStatusLabel]);
 
   // strictly boolean flag for disabling manual amount
   const isAutoCommission =

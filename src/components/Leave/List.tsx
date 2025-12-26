@@ -418,6 +418,7 @@ interface LeaveFilter {
   };
 
   const handleExportCSV = () => {
+    const escapeCSV = (val: string | number) => `"${String(val ?? "").replace(/"/g, '""')}"`;
     const headers = [
       'Doctor Name',
       'Leave Type',
@@ -432,29 +433,30 @@ interface LeaveFilter {
     ];
 
     const rows = leaves.map((leave) => [
-      leave.doctorName || 'N/A',
-      leave.leaveType,
-      dayjs(leave.startDate).format('DD/MM/YYYY'),
-      dayjs(leave.endDate).format('DD/MM/YYYY'),
+      escapeCSV(leave.doctorName || 'N/A'),
+      escapeCSV(leave.leaveType.charAt(0).toUpperCase() + leave.leaveType.slice(1)),
+      escapeCSV(dayjs(leave.startDate).format('DD-MM-YYYY')),
+      escapeCSV(dayjs(leave.endDate).format('DD-MM-YYYY')),
       dayjs(leave.endDate).diff(dayjs(leave.startDate), 'day') + 1,
-      leave.reason,
-      leave.status,
-      dayjs(leave.appliedDate).format('DD/MM/YYYY'),
-      leave.approvedDate ? dayjs(leave.approvedDate).format('DD/MM/YYYY') : 'N/A',
-      leave.rejectionReason || 'N/A',
+      escapeCSV(leave.reason),
+      escapeCSV(leave.status.charAt(0).toUpperCase() + leave.status.slice(1)),
+      escapeCSV(dayjs(leave.appliedDate).format('DD-MM-YYYY')),
+      escapeCSV(leave.approvedDate ? dayjs(leave.approvedDate).format('DD-MM-YYYY') : 'N/A'),
+      escapeCSV(leave.rejectionReason || 'N/A'),
     ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const csv = [
+      headers.map(h => escapeCSV(h)).join(','),
+      ...rows.map((row) => row.join(','))
+    ].join('\n');
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `leave_report_${dayjs().format('YYYY-MM-DD')}.csv`);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `leave_report_${dayjs().format('DD-MM-YYYY')}.csv`;
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const calculateDays = (startDate: string, endDate: string) => {

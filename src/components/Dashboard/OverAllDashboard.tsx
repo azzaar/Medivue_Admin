@@ -391,55 +391,70 @@ const topDoctors = [...byDoctor]
   }, [month, year]);
 
   /** ---------- Download Enhanced CSV ---------- */
+  const escapeCSV = (val: string | number) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+
   const downloadAll = () => {
     const lines: string[] = [];
-    lines.push(`Clinical & Financial Report - ${periodLabel}`);
-    lines.push(`Generated: ${dayjs().format('DD MMM YYYY, HH:mm')}`);
+    lines.push(`"Clinical & Financial Report - ${periodLabel}"`);
+    lines.push(`"Generated: ${dayjs().format('DD-MM-YYYY HH:mm')}"`);
     lines.push("");
-    
-    lines.push("=== FINANCIAL OVERVIEW ===");
-    lines.push(`Total Income,₹${fmt(patientKPI.paid)}`);
-    lines.push(`Total Expenses,₹${fmt(expenseKPI.totalSpend)}`);
-    lines.push(`Net Profit,₹${fmt(netProfit)}`);
-    lines.push(`Profit Margin,${profitMargin.toFixed(2)}%`);
+
+    lines.push('"=== FINANCIAL OVERVIEW ==="');
+    lines.push(`"Total Income",${fmt(patientKPI.paid)}`);
+    lines.push(`"Total Expenses",${fmt(expenseKPI.totalSpend)}`);
+    lines.push(`"Net Profit",${fmt(netProfit)}`);
+    lines.push(`"Profit Margin","${profitMargin.toFixed(2)}%"`);
     lines.push("");
-    
-    lines.push("=== PATIENT METRICS ===");
-    lines.push(`Total Visits,${patientKPI.visits}`);
-    lines.push(`Total Fee,₹${fmt(patientKPI.fee)}`);
-    lines.push(`Amount Paid,₹${fmt(patientKPI.paid)}`);
-    lines.push(`Amount Due,₹${fmt(patientKPI.due)}`);
-    lines.push(`Collection Rate,${patientKPI.collectionRate.toFixed(2)}%`);
-    lines.push(`Avg Per Visit,₹${fmt(patientKPI.avgPerVisit)}`);
+
+    lines.push('"=== PATIENT METRICS ==="');
+    lines.push(`"Total Visits",${patientKPI.visits}`);
+    lines.push(`"Total Fee",${fmt(patientKPI.fee)}`);
+    lines.push(`"Amount Paid",${fmt(patientKPI.paid)}`);
+    lines.push(`"Amount Due",${fmt(patientKPI.due)}`);
+    lines.push(`"Collection Rate","${patientKPI.collectionRate.toFixed(2)}%"`);
+    lines.push(`"Avg Per Visit",${fmt(patientKPI.avgPerVisit)}`);
     lines.push("");
-    
-    lines.push("=== TOP DOCTORS (BY REVENUE) ===");
-    lines.push("Doctor Name,Specialization,Total Fee,Income,Due,Collection %,Salary,Profit,Profit %,ROI %,Visits,Avg/Visit");
+
+    lines.push('"=== TOP DOCTORS (BY REVENUE) ==="');
+    lines.push('"Doctor Name","Specialization","Total Fee","Income","Due","Collection %","Salary","Profit","Profit %","ROI %","Visits","Avg/Visit"');
     topDoctors.forEach(d => {
-      lines.push(`${d.name},${d.specialization},₹${fmt(d.totalFee)},₹${fmt(d.income)},₹${fmt(d.due)},${d.collectionRate.toFixed(1)}%,₹${fmt(d.salary)},₹${fmt(d.profitGenerated)},${d.profitMarginPercent.toFixed(1)}%,${d.roi.toFixed(1)}%,${d.visits},₹${fmt(d.avgPerVisit)}`);
+      lines.push([
+        escapeCSV(d.name),
+        escapeCSV(d.specialization),
+        fmt(d.totalFee),
+        fmt(d.income),
+        fmt(d.due),
+        `"${d.collectionRate.toFixed(1)}%"`,
+        fmt(d.salary),
+        fmt(d.profitGenerated),
+        `"${d.profitMarginPercent.toFixed(1)}%"`,
+        `"${d.roi.toFixed(1)}%"`,
+        d.visits,
+        fmt(d.avgPerVisit)
+      ].join(","));
     });
     lines.push("");
-    
-    lines.push("=== EXPENSE BREAKDOWN ===");
-    lines.push(`Total Spend,₹${fmt(expenseKPI.totalSpend)}`);
-    lines.push(`Transactions,${expenseKPI.count}`);
-    lines.push(`Avg Per Transaction,₹${fmt(expenseKPI.avgPerTransaction)}`);
+
+    lines.push('"=== EXPENSE BREAKDOWN ==="');
+    lines.push(`"Total Spend",${fmt(expenseKPI.totalSpend)}`);
+    lines.push(`"Transactions",${expenseKPI.count}`);
+    lines.push(`"Avg Per Transaction",${fmt(expenseKPI.avgPerTransaction)}`);
     lines.push("");
-    lines.push("Category,Amount");
-    byCategory.forEach(r => lines.push(`${r.name},₹${fmt(r.total)}`));
+    lines.push('"Category","Amount"');
+    byCategory.forEach(r => lines.push(`${escapeCSV(r.name)},${fmt(r.total)}`));
     lines.push("");
-    
-    lines.push("=== MONTHLY COMPARISON ===");
-    lines.push("Month,Income,Expenses,Profit");
+
+    lines.push('"=== MONTHLY COMPARISON ==="');
+    lines.push('"Month","Income","Expenses","Profit"');
     incomeVsExpenses.forEach(r => {
-      lines.push(`${r.month},₹${fmt(r.income)},₹${fmt(r.expenses)},₹${fmt(r.profit)}`);
+      lines.push(`"${r.month}",${fmt(r.income)},${fmt(r.expenses)},${fmt(r.profit)}`);
     });
-    
+
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `clinical-finance-${dayjs().format('YYYY-MM-DD')}.csv`;
+    a.download = `clinical-finance-${dayjs().format('DD-MM-YYYY')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

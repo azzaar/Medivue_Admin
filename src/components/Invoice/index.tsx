@@ -193,6 +193,9 @@ const InvoicePage: React.FC = () => {
         });
       }
 
+      // Sort payments by date in ascending order (oldest first)
+      payments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
       const totalFee = payments.reduce((acc, p) => acc + (p.fee || 0), 0);
       const totalPaid = payments.reduce((acc, p) => acc + (p.paid || 0), 0);
       const totalDue = payments.reduce((acc, p) => acc + ((p.fee - p.paid) || 0), 0);
@@ -631,7 +634,7 @@ const InvoicePage: React.FC = () => {
                           Number: INV-{invoiceData.patient?.id.slice(-6).toUpperCase()}-{new Date().getTime().toString().slice(-6)}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          Date: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          Date: {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -690,11 +693,11 @@ const InvoicePage: React.FC = () => {
                             return (
                               <TableRow key={payment.id || index}>
                                 <TableCell>
-                                  {new Date(payment.date).toLocaleDateString("en-IN", {
+                                  {new Date(payment.date).toLocaleDateString("en-GB", {
                                     day: "2-digit",
-                                    month: "short",
+                                    month: "2-digit",
                                     year: "numeric",
-                                  })}
+                                  }).replace(/\//g, "-")}
                                 </TableCell>
                                 <TableCell>
                                   {payment.treatmentDescription || "Physiotherapy"}

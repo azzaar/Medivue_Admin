@@ -259,7 +259,7 @@ const Dashboard: React.FC = () => {
       csv += toCSV(["Date", "Visits", "Total Fee", "Paid", "Due"]) + "\n";
       rowsDaily.forEach((r) =>
         (csv += toCSV([
-          new Date(r.date).toLocaleDateString(),
+          new Date(r.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
           String(r.visits),
           String(r.totalFee),
           String(r.totalPaid),

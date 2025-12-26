@@ -78,10 +78,11 @@ const months = [
   "December",
 ];
 
-const toUTCDateOnly = (isoLike: string): string =>
-  /^\d{4}-\d{2}-\d{2}$/.test(isoLike)
-    ? isoLike
-    : new Date(isoLike).toISOString().slice(0, 10);
+const toUTCDateOnly = (isoLike: string): string => {
+  const dateObj = new Date(isoLike);
+  if (isNaN(dateObj.getTime())) return "-";
+  return dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+};
 
 type TabKey = "attendance" | "history";
 
